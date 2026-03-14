@@ -38,11 +38,11 @@ const createJob = async (req, res) => {
 
 const updateJob = async (req, res) => {
   const { id } = req.params;
-  const { application_status, notes } = req.body;
+  const { status, notes } = req.body;
 
   const updates = {};
 
-  if (application_status) updates.status = application_status;
+  if (status) updates.status = status;
   if (notes) updates.notes = notes;
 
   const { error } = await client
