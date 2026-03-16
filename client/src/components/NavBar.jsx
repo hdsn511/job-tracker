@@ -6,11 +6,10 @@ export default function NavBar() {
 
   return (
     <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
-      <div className="items-left">
-        <h1 className="text-xl font-bold text-primary">Job</h1>
-        <h1 className="text-xl font-bold">Tracker</h1>
-      </div>
-    
+      <h1 className="text-xl font-bold">
+        <span className="text-primary">Job</span>Tracker
+      </h1>
+
       <Button
         variant="ghost"
         size="sm"

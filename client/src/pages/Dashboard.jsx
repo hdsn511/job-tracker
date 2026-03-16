@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
   const [activeFilter, setActiveFilter] = useState("All");
@@ -74,7 +75,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <NavBar />
       <main className="flex flex-col p-6 gap-4">
+        <h2 className="text-2xl font-semibold text-foreground">My Applications</h2>
         <div className="flex items-center justify-between">
+          
           <div className="flex gap-3">
             {/* filter buttons on the left */}
             <Button
@@ -117,7 +120,8 @@ export default function Dashboard() {
         </div>
 
         {/* job cards */}
-        <Table>
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Company</TableHead>
@@ -131,7 +135,7 @@ export default function Dashboard() {
           <TableBody>
             {jobs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-4">
+                <TableCell colSpan={6} className="text-center py-4">
                   No jobs found. Start by adding a new job!
                 </TableCell>
               </TableRow>
@@ -198,6 +202,7 @@ export default function Dashboard() {
             )}
           </TableBody>
         </Table>
+        </div>
         <AddJobModal
           open={isModalOpen}
           onClose={() => setIsModalOpen(false)}
