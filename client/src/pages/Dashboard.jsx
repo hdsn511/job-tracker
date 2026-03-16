@@ -44,6 +44,12 @@ export default function Dashboard() {
     fetchJobs();
   }, [activeFilter]);
 
+  useEffect(() => {
+    if (!localStorage.getItem("token")) {
+      navigate("/");
+    }
+  }, []);
+
   const handleDelete = (id) => {
     fetch(`http://localhost:8000/jobs/${id}`, {
       method: "DELETE",
@@ -119,6 +125,7 @@ export default function Dashboard() {
               <TableHead>Status</TableHead>
               <TableHead>Date Applied</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead>Delete</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

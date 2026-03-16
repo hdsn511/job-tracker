@@ -42,8 +42,8 @@ const updateJob = async (req, res) => {
 
   const updates = {};
 
-  if (status) updates.status = status;
-  if (notes) updates.notes = notes;
+  if (status !== undefined) updates.status = status;
+  if (notes !== undefined) updates.notes = notes;
 
   const { error } = await client
     .from("jobs")
