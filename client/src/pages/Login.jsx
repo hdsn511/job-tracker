@@ -21,8 +21,7 @@ export default function Login() {
     if (data.token) {
       localStorage.setItem("token", data.token);
       navigate("/dashboard");
-    }
-    else {
+    } else {
       setError("Invalid email or password. Please try again.");
     }
   };
@@ -50,7 +49,13 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">
+          <span className="text-primary">Job</span>Tracker
+        </h1>
+      </div>
+
       <div className="bg-card border border-border rounded-xl p-8 w-full max-w-sm flex flex-col gap-4 shadow-lg">
         <h1 className="text-2xl font-bold text-center text-foreground">
           {isRegistered ? "Welcome Back" : "Create Account"}
