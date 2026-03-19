@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { useState } from "react";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export default function AddJobModal({ open, onClose, onJobAdded }) {
   const [companyName, setCompanyName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -23,7 +25,7 @@ export default function AddJobModal({ open, onClose, onJobAdded }) {
   const [notes, setNotes] = useState("");
 
   const handleSubmit = async (e) => {
-    fetch("http://localhost:8000/jobs", {
+    fetch(`${API_URL}/jobs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -21,17 +21,20 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+
 export default function Dashboard() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [jobs, setJobs] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState(null); // job id
+  const navigate = useNavigate();
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const fetchJobs = () => {
     const url =
       activeFilter === "All"
-        ? "http://localhost:8000/jobs"
-        : `http://localhost:8000/jobs?status=${activeFilter}`;
+        ? `${API_URL}/jobs`
+        : `${API_URL}/jobs?status=${activeFilter}`;
     fetch(url, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -52,7 +55,7 @@ export default function Dashboard() {
   }, []);
 
   const handleDelete = (id) => {
-    fetch(`http://localhost:8000/jobs/${id}`, {
+    fetch(`${API_URL}/jobs/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -61,7 +64,7 @@ export default function Dashboard() {
   };
 
   const handleUpdate = (id, field, value) => {
-    fetch(`http://localhost:8000/jobs/${id}`, {
+    fetch(`${API_URL}/jobs/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

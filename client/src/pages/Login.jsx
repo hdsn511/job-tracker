@@ -9,9 +9,10 @@ export default function Login() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const login = async (email, password) => {
-    const response = await fetch("http://localhost:8000/auth/login", {
+    const response = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -30,7 +31,7 @@ export default function Login() {
     if (isRegistered) {
       login(email, password);
     } else {
-      fetch(`http://localhost:8000/auth/register`, {
+      fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
