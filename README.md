@@ -20,20 +20,3 @@ A full-stack web app for managing job applications. Users can create an account,
 **Database:** Supabase (PostgreSQL)  
 **Auth:** JWT + bcrypt  
 **Hosting:** Vercel (frontend + backend)
-
----
-
-## Setup
-
-The app is fully hosted — no local setup required. Visit the live demo link above to create an account and get started.
-
-For local development, clone the repo and refer to the `/client` and `/server` folders. Each requires its own `.env` file with the appropriate environment variables.
-
----
-
-## Notes & Trade-offs
-
-- The backend is deployed as a serverless Express app on Vercel using `@vercel/node`, avoiding the need for a separate hosting service like Railway or Render.
-- JWT tokens are stored client-side and attached to requests via Authorization headers.
-- Passwords are hashed with bcrypt before being stored in Supabase.
-- No mobile responsiveness per the spec — the UI is optimized for desktop.
