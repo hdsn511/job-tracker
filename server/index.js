@@ -8,7 +8,8 @@ const app = express();
 
 app.use(cors({
   origin: [
-    "https://your-job-tracker-frontend-ten-eta.vercel.app" 
+    "http://localhost:5173",
+    "https://your-job-tracker-frontend-ten-eta.vercel.app"
   ]
 }));
 app.use(express.json());
