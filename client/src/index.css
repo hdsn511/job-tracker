@@ -10,18 +10,18 @@
   --card-foreground: oklch(0.95 0 0);
   --popover: oklch(0.16 0 0);
   --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.6 0.2 290);
+  --primary: oklch(77.962% 0.16039 63.956);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.2 0 0);
   --secondary-foreground: oklch(0.95 0 0);
   --muted: oklch(0.2 0 0);
   --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.6 0.2 290);
+  --accent: oklch(77.962% 0.16039 63.956);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.25 0 0);
   --input: oklch(0.2 0 0);
-  --ring: oklch(0.6 0.2 290);
+  --ring: oklch(77.962% 0.16039 63.956);
   --radius: 0.625rem;
 }
 
