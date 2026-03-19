@@ -8,8 +8,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    "http://localhost:5173",
-    "https://your-job-tracker-client.vercel.app" // add after frontend is deployed
+    "https://your-job-tracker-frontend-ten-eta.vercel.app" 
   ]
 }));
 app.use(express.json());
