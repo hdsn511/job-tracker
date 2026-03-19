@@ -4,10 +4,14 @@ const cors = require('cors')
 const jobsRouter = require('./routes/jobsRouter')
 const authRouter = require('./routes/authRouter')
 
-
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://your-job-tracker-client.vercel.app" // add after frontend is deployed
+  ]
+}));
 app.use(express.json());
 
 const PORT = 8000
@@ -15,8 +19,6 @@ const PORT = 8000
 app.use('/auth', authRouter)
 app.use('/jobs', jobsRouter)
 
-
-
-
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
+module.exports = app;
