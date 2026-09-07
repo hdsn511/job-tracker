@@ -1,77 +1,75 @@
-const client = require("../supabaseClient");
+const sql = require("../db");
 
 const getJobs = async (req, res) => {
   const { status } = req.query;
 
-  let query = client.from('jobs').select().eq('user_id', req.user.id);
+  try {
+    const data = status
+      ? await sql`select * from jobs where user_id = ${req.user.id} and status = ${status}`
+      : await sql`select * from jobs where user_id = ${req.user.id}`;
 
-  if (status) {
-    query = query.eq('status', status);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
-  res.json(data);
 };
 
 const createJob = async (req, res) => {
   const { company_name, job_title, status, application_date, notes } = req.body;
 
-  const { error } = await client.from("jobs").insert({
-    company_name,
-    job_title,
-    status,
-    application_date,
-    notes,
-    user_id: req.user.id,
-  });
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  try {
+    await sql`
+      insert into jobs (company_name, job_title, status, application_date, notes, user_id)
+      values (${company_name}, ${job_title}, ${status}, ${application_date}, ${notes}, ${req.user.id})
+    `;
+    res.status(201).json({ message: "Job created successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  res.status(201).json({ message: "Job created successfully!" });
 };
 
 const updateJob = async (req, res) => {
   const { id } = req.params;
   const { status, notes } = req.body;
 
-  const updates = {};
+  const setClauses = [];
+  const values = [];
 
-  if (status) updates.status = status;
-  if (notes) updates.notes = notes;
-
-  const { error } = await client
-    .from("jobs")
-    .update(updates)
-    .eq("id", id)
-    .eq("user_id", req.user.id);
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  if (status) {
+    values.push(status);
+    setClauses.push(`status = $${values.length}`);
+  }
+  if (notes) {
+    values.push(notes);
+    setClauses.push(`notes = $${values.length}`);
   }
 
-  res.json({ message: "Job updated successfully!" });
+  if (setClauses.length === 0) {
+    return res.json({ message: "Job updated successfully!" });
+  }
+
+  values.push(id, req.user.id);
+
+  try {
+    await sql.query(
+      `update jobs set ${setClauses.join(", ")} where id = $${values.length - 1} and user_id = $${values.length}`,
+      values,
+    );
+    res.json({ message: "Job updated successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 const deleteJob = async (req, res) => {
   const { id } = req.params;
 
-  const { error } = await client
-    .from("jobs")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", req.user.id);
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  try {
+    await sql`delete from jobs where id = ${id} and user_id = ${req.user.id}`;
+    res.json({ message: "Job deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-
-  res.json({ message: "Job deleted successfully!" });
 };
 
 module.exports = {

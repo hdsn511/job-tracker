@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Tracker — Privacy Policy</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf8;
+    --text: #1c1a17;
+    --muted: #5b564e;
+    --accent: #2f6f4f;
+    --rule: #e4e0d8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16150f;
+      --text: #ece7dc;
+      --muted: #a7a094;
+      --accent: #6fbf94;
+      --rule: #33312a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  main {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+  h1 {
+    font-size: 1.75rem;
+    margin: 0 0 0.25rem;
+    text-wrap: balance;
+  }
+  .updated {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 2rem;
+  }
+  h2 {
+    font-size: 1.1rem;
+    margin: 2rem 0 0.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+  p, li { color: var(--text); }
+  ul { padding-left: 1.25rem; }
+  a { color: var(--accent); }
+  code {
+    background: var(--rule);
+    padding: 0.1em 0.4em;
+    border-radius: 0.3em;
+    font-size: 0.9em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Job Tracker — Privacy Policy</h1>
+  <p class="updated">Last updated September 2026</p>
+
+  <p>
+    Job Tracker is a personal job-application tracking tool. This page explains what
+    data it accesses and how that data is used and stored.
+  </p>
+
+  <h2>Gmail access</h2>
+  <p>
+    Job Tracker requests <strong>read-only</strong> access to Gmail
+    (<code>gmail.readonly</code>) for one purpose: scanning for emails from job
+    application systems (e.g. Workday, Greenhouse, Lever, and direct employer
+    senders) to automatically detect application status updates — applied,
+    interviewing, offer, or rejected.
+  </p>
+  <ul>
+    <li>Job Tracker never sends, deletes, or modifies email, and never requests write access to Gmail.</li>
+    <li>Only the sender, subject, and body text of messages matching known job-application senders are read; other mail is not processed.</li>
+    <li>Extracted information (company name, job title, status, and a short excerpt used as a note) is stored in Job Tracker's own database, tied to the account that connected Gmail.</li>
+  </ul>
+
+  <h2>What is not done with your data</h2>
+  <ul>
+    <li>Data is not sold, shared, or used for advertising.</li>
+    <li>Data is not used to train any AI/ML model.</li>
+    <li>Gmail data is not shared with any third party, except an optional, low-confidence classification fallback sent to Google's Gemini API (email subject/body text only, for classification, not stored by that service beyond the request).</li>
+  </ul>
+
+  <h2>Data storage and retention</h2>
+  <p>
+    Application data is stored in a private database operated by the Job Tracker
+    account holder. Gmail access tokens are encrypted at rest and are never
+    stored in plaintext. You can revoke Job Tracker's access at any time from
+    your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account permissions page</a>.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about this policy or your data can be sent to
+    <a href="mailto:htreinen511@gmail.com">htreinen511@gmail.com</a>.
+  </p>
+</main>
+</body>
+</html>
