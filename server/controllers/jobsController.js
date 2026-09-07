@@ -35,11 +35,11 @@ const updateJob = async (req, res) => {
   const setClauses = [];
   const values = [];
 
-  if (status) {
+  if (status !== undefined) {
     values.push(status);
     setClauses.push(`status = $${values.length}`);
   }
-  if (notes) {
+  if (notes !== undefined) {
     values.push(notes);
     setClauses.push(`notes = $${values.length}`);
   }

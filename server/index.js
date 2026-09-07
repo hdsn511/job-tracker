@@ -5,13 +5,18 @@ const helmet = require('helmet')
 const jobsRouter = require('./routes/jobsRouter')
 const authRouter = require('./routes/authRouter')
 
-
 const app = express();
 
 app.use(helmet());
-// Set CLIENT_ORIGIN in production (e.g. your Vercel frontend URL) to stop
-// browsers from any other origin from being able to call this API.
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || true }));
+// CLIENT_ORIGIN can override/extend this list in other environments
+// (comma-separated), but these two are always allowed since they're the
+// real dev and production frontends.
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://job-tracker-frontend-ten-eta.vercel.app",
+  ...(process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",") : []),
+];
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 const PORT = 8000
@@ -19,8 +24,6 @@ const PORT = 8000
 app.use('/auth', authRouter)
 app.use('/jobs', jobsRouter)
 
-
-
-
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
+module.exports = app;
