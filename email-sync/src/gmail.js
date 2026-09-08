@@ -1,6 +1,8 @@
-// Sender domains/addresses worth searching for at all — keeps the Gmail
-// query narrow instead of scanning the whole mailbox every run.
-const CANDIDATE_SENDER_TERMS = [
+const { KNOWN_DIRECT_SENDERS, THIRD_PARTY_SENDERS } = require('./companyMap');
+
+// Multi-tenant ATS platform domains — safe to match broadly since every
+// sender on them is some employer's recruiting flow.
+const ATS_PLATFORM_DOMAINS = [
   'myworkday.com',
   'us.greenhouse-mail.io',
   'ashbyhq.com',
@@ -8,25 +10,24 @@ const CANDIDATE_SENDER_TERMS = [
   'talent.icims.com',
   'hackerrankforwork.com',
   'workflow.mail.us2.cloud.oracle.com',
-  'ibm.com',
-  'mail.amazon.jobs',
-  'google.com',
-  'openai.com',
-  'spacex.com',
-  'oracle.com',
-  'email.careers.microsoft.com',
-  'stripe.com',
-  'recruitment.americanexpress.com',
-  'cognizant.com',
-  'talent.paypal.com',
-  'epic.com',
-  'micro1.ai',
-  // Noise sources are included too — we still need to see them to filter
-  // them out, e.g. the Amazon "keep track" duplicate.
-  'match.indeed.com',
-  'hi.wellfound.com',
-  'linkedin.com',
 ];
+
+// Direct/custom employer senders — matched by exact address, not domain.
+// Domains like google.com or stripe.com send plenty of non-recruiting mail
+// (security alerts, product announcements); matching the whole domain would
+// pull all of that in and waste API quota on messages that are never
+// job-application signal.
+const DIRECT_SENDER_ADDRESSES = [
+  ...Object.keys(KNOWN_DIRECT_SENDERS),
+  ...Object.keys(THIRD_PARTY_SENDERS),
+];
+
+// Sender domains/addresses worth searching for at all — keeps the Gmail
+// query narrow instead of scanning the whole mailbox every run. Pure noise
+// sources (LinkedIn digests, Indeed/Wellfound alerts) are deliberately not
+// included here at all — they're never real application signal, so there's
+// no reason to spend quota fetching them just to filter them back out.
+const CANDIDATE_SENDER_TERMS = [...ATS_PLATFORM_DOMAINS, ...DIRECT_SENDER_ADDRESSES];
 
 function buildSenderQuery() {
   return `(${CANDIDATE_SENDER_TERMS.map((term) => `from:${term}`).join(' OR ')})`;

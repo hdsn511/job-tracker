@@ -6,6 +6,7 @@ const {
   classifyNoise,
   classifyStatus,
   extractCompany,
+  extractJobTitle,
   extractJobId,
   classifyEmail,
 } = require('../src/classifier');
@@ -220,6 +221,79 @@ test('classifyEmail: micro1 assessment is flagged as third-party', () => {
   });
   assert.equal(result.isThirdParty, true);
   assert.equal(result.status, 'Interviewing');
+});
+
+test('extractCompany: iCIMS "<company>+autoreply@" tag is trusted over free text', () => {
+  assert.equal(
+    extractCompany({
+      from: 'AMD Careers <amd+autoreply@talent.icims.com>',
+      subject: 'Thank you for applying at AMD, Inc.',
+      body:
+        'Thank you very much for your recent application to the AI Software Development ' +
+        'Engineer position at AMD, Inc.. Your submission will be reviewed.',
+    }),
+    'AMD',
+  );
+});
+
+test('extractCompany: generic free-text fallback rejects sentence-length captures', () => {
+  const result = extractCompany({
+    from: 'careers@unknown-corp-example.com',
+    subject: 'Update on your application',
+    body:
+      'Thank you very much for your recent application to the AI Software Development ' +
+      'Engineer position at AMD, Inc.. Your submission will be reviewed.',
+  });
+  // No ATS/direct-sender signal and the only regex match is sentence-length,
+  // so this should come back null (-> NEEDS REVIEW) rather than garbage.
+  assert.equal(result, null);
+});
+
+test('extractJobTitle: "application to the X position at Y" phrasing', () => {
+  assert.equal(
+    extractJobTitle({
+      subject: 'Thank you for applying at AMD, Inc.',
+      body: 'Thank you very much for your recent application to the AI Software Development Engineer position at AMD, Inc..',
+    }),
+    'AI Software Development Engineer',
+  );
+});
+
+test('extractCompany: a period inside the company name is not truncated', () => {
+  assert.equal(
+    extractCompany({
+      from: 'no-reply@us.greenhouse-mail.io',
+      subject: 'Thank you for applying to ID.me',
+      body: 'Thank you for your interest in working at ID.me. Our recruiting team is hard at work.',
+    }),
+    'ID.me',
+  );
+});
+
+test('extractCompany: "Company | Application Received" (not just "Confirmation")', () => {
+  assert.equal(
+    extractCompany({
+      from: 'Crusoe Hiring Team <no-reply@ashbyhq.com>',
+      subject: 'Crusoe | Application Received',
+      body: 'Thank you for applying to our role: Software Engineer I, Storage. We appreciate your interest.',
+    }),
+    'Crusoe',
+  );
+});
+
+test('classifyEmail: full pipeline on the real AMD/iCIMS example', () => {
+  const result = classifyEmail({
+    from: 'AMD Careers <amd+autoreply@talent.icims.com>',
+    subject: 'Thank you for applying at AMD, Inc.',
+    body:
+      'Dear Hudson,\n\nThank you very much for your recent application to the AI Software ' +
+      'Development Engineer position at AMD, Inc.. Your submission will be reviewed by our ' +
+      'recruiting staff.',
+  });
+  assert.equal(result.isNoise, false);
+  assert.equal(result.company, 'AMD');
+  assert.equal(result.jobTitle, 'AI Software Development Engineer');
+  assert.equal(result.status, 'Applied');
 });
 
 test('classifyEmail: unclassifiable status sets needsFallback', () => {

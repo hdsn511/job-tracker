@@ -11,6 +11,11 @@ const { getExistingJobs, upsertClassifiedEmail } = require('./jobs');
 // there's no prior watermark yet.
 const DEFAULT_LOOKBACK_SECONDS = 30 * 24 * 60 * 60;
 
+// Gmail's per-user "units per minute" quota is easy to blow through on a
+// large first-time backfill if messages.get calls fire back-to-back.
+const FETCH_DELAY_MS = 250;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function syncConnection({ userId, gmailAddress, refreshToken, lastSyncedAt }) {
   const gmail = getGmailClient(refreshToken);
   const afterEpochSeconds = lastSyncedAt || Math.floor(Date.now() / 1000) - DEFAULT_LOOKBACK_SECONDS;
@@ -27,6 +32,8 @@ async function syncConnection({ userId, gmailAddress, refreshToken, lastSyncedAt
   const summary = { inserted: 0, updated: 0, noise: 0, needsReview: 0, errors: 0 };
 
   for (const id of messageIds) {
+    await sleep(FETCH_DELAY_MS);
+
     let email;
     try {
       email = await getMessage(gmail, id);
@@ -82,8 +89,18 @@ async function syncConnection({ userId, gmailAddress, refreshToken, lastSyncedAt
     }
   }
 
-  await setLastSyncedAt(userId, runStartedAt);
-  console.log('Summary:', summary);
+  if (summary.errors > 0) {
+    // Some messages in this window weren't actually processed (e.g. a
+    // quota error mid-run) — leave the watermark where it was so the next
+    // run retries the same window instead of silently skipping them.
+    // Already-inserted/updated jobs are safe to see again: upsert matches
+    // by ref/company+title, and noise/needsReview emails just get
+    // reclassified the same way.
+    console.log(`Summary: ${JSON.stringify(summary)} — watermark NOT advanced due to errors, will retry this window next run.`);
+  } else {
+    await setLastSyncedAt(userId, runStartedAt);
+    console.log('Summary:', summary);
+  }
 }
 
 async function main() {

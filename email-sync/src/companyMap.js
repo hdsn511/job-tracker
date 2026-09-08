@@ -20,25 +20,29 @@ const THIRD_PARTY_SENDERS = {
   'support@micro1.ai': 'micro1 (third-party AI screener)',
 };
 
-// Workday subdomains ("<company>@myworkday.com") that don't prettify well
-// with simple capitalization.
-const KNOWN_WORKDAY_NAMES = {
+// Short company slugs (from a Workday subdomain, or the "<company>+..." tag
+// in an iCIMS local-part) that don't prettify well with simple
+// capitalization — either an all-caps abbreviation or multiple words.
+const KNOWN_COMPANY_SLUGS = {
   pwc: 'PwC',
   chewy: 'Chewy',
   salesforce: 'Salesforce',
   blueorigin: 'Blue Origin',
+  amd: 'AMD',
+  ibm: 'IBM',
+  generalmotors: 'General Motors',
 };
 
-function prettifyWorkdaySubdomain(subdomain) {
-  const known = KNOWN_WORKDAY_NAMES[subdomain.toLowerCase()];
+function prettifyCompanySlug(slug) {
+  const known = KNOWN_COMPANY_SLUGS[slug.toLowerCase()];
   if (known) return known;
-  // Best-effort fallback: capitalize the raw subdomain as one word.
-  return subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
+  // Best-effort fallback: capitalize the raw slug as one word.
+  return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 module.exports = {
   KNOWN_DIRECT_SENDERS,
   THIRD_PARTY_SENDERS,
-  KNOWN_WORKDAY_NAMES,
-  prettifyWorkdaySubdomain,
+  KNOWN_COMPANY_SLUGS,
+  prettifyCompanySlug,
 };

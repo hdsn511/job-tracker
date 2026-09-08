@@ -4,7 +4,7 @@
 const {
   KNOWN_DIRECT_SENDERS,
   THIRD_PARTY_SENDERS,
-  prettifyWorkdaySubdomain,
+  prettifyCompanySlug,
 } = require('./companyMap');
 
 const ATS = {
@@ -169,12 +169,20 @@ function classifyStatus(text) {
 // Company name extraction
 // ---------------------------------------------------------------------------
 
+// A period inside the captured span (e.g. "ID.me") shouldn't stop the
+// match, only a sentence-ending one (followed by whitespace or the end of
+// the string) should.
+const NAME_CHARS = '(?:[^!,\\n|.]|\\.(?!\\s|$))+';
+
 const SUBJECT_COMPANY_PATTERNS = [
-  /thanks? for applying to ([^!.,\n|]+)/i,
-  /thank you for applying to ([^!.,\n|]+)/i,
-  /your application to ([^!.,\n|]+)/i,
-  /application (?:to|with) ([^!.,\n|]+)/i,
-  /^([^|]+?)\s*\|\s*Application Confirmation/i,
+  new RegExp(`thanks? for applying (?:to|at) (${NAME_CHARS})`, 'i'),
+  new RegExp(`thank you for applying (?:to|at) (${NAME_CHARS})`, 'i'),
+  new RegExp(`your application to (${NAME_CHARS})`, 'i'),
+  /^([^|]+?)\s*\|\s*Application (?:Confirmation|Received|Update|Status)\b/i,
+  // Checked last — "application to/for the X position at Y" tends to
+  // capture the role, not just the company, if a more specific pattern
+  // above didn't already match; isPlausibleCompanyName() guards the rest.
+  new RegExp(`application (?:to|with) (${NAME_CHARS})`, 'i'),
 ];
 
 function cleanExtracted(raw) {
@@ -182,14 +190,28 @@ function cleanExtracted(raw) {
   return raw.replace(/\s+/g, ' ').trim().replace(/[.!,]+$/, '') || null;
 }
 
+// Free-text regex extraction is fragile — a plausible company name is short.
+// Rejects sentence-length captures like "the AI Software Development
+// Engineer position at AMD" instead of trusting them outright.
+function isPlausibleCompanyName(s) {
+  if (!s) return false;
+  return s.length <= 60 && s.trim().split(/\s+/).length <= 6;
+}
+
 function extractCompanyFromText(subject, body) {
   for (const re of SUBJECT_COMPANY_PATTERNS) {
     const match = (subject || '').match(re);
-    if (match) return cleanExtracted(match[1]);
+    if (match) {
+      const cleaned = cleanExtracted(match[1]);
+      if (isPlausibleCompanyName(cleaned)) return cleaned;
+    }
   }
   for (const re of SUBJECT_COMPANY_PATTERNS) {
     const match = (body || '').match(re);
-    if (match) return cleanExtracted(match[1]);
+    if (match) {
+      const cleaned = cleanExtracted(match[1]);
+      if (isPlausibleCompanyName(cleaned)) return cleaned;
+    }
   }
   return null;
 }
@@ -207,13 +229,13 @@ function extractCompany({ from, subject, body }, atsInfo) {
   if (info.ats === ATS.WORKDAY) {
     // "<company>@myworkday.com" — the company identifier is the local part.
     const localPart = info.address.split('@')[0];
-    return prettifyWorkdaySubdomain(localPart);
+    return prettifyCompanySlug(localPart);
   }
-  if (
-    [ATS.GREENHOUSE, ATS.ASHBY, ATS.LEVER, ATS.ICIMS, ATS.HACKERRANK, ATS.ORACLE_RECRUITING].includes(
-      info.ats,
-    )
-  ) {
+  if (info.ats === ATS.ICIMS) {
+    // "<company>+autoreply@talent.icims.com" — trust the tag over free text.
+    const localPart = info.address.split('@')[0];
+    const [companyTag, hasTag] = localPart.split('+');
+    if (hasTag !== undefined && companyTag) return prettifyCompanySlug(companyTag);
     return extractCompanyFromText(subject, body);
   }
   return extractCompanyFromText(subject, body);
@@ -225,19 +247,46 @@ function extractCompany({ from, subject, body }, atsInfo) {
 
 const JOB_TITLE_PATTERNS = [
   /for the ([^.,\n(]+?) (?:position|role)\b/i,
+  // Anchored on "application to/for" specifically — a bare "to" is too
+  // common a word and matches unrelated earlier sentences (e.g. "a
+  // reminder to complete...") in longer emails.
+  /application (?:to|for) (?:the\s+)?([^.,\n(]+?)\s+(?:position|role)\b/i,
   /for ([^.,\n(]+?)\s*\(Job ID/i,
   /for ([^.,\n(]+?)\s*\(req/i,
   /application for ([^.,\n(]+?)(?:\s+at\s+|\s*[.,(\n]|$)/i,
 ];
 
+// A leading lowercase filler word (verb, pronoun, article) is the tell that
+// a non-greedy capture ran across a sentence boundary into unrelated text
+// instead of landing on an actual title, e.g. "be considered for the" or
+// "submit your application for the".
+const JOB_TITLE_BAD_LEAD_WORDS = new Set([
+  'a', 'an', 'the', 'you', 'your', 'we', 'our', 'us', 'this', 'that', 'it',
+  'if', 'to', 'for', 'and', 'or', 'but', 'be', 'see', 'take', 'submit',
+  'complete', 'arrange', 'apply', 'applying', 'proceed',
+]);
+
+function isPlausibleJobTitle(s) {
+  if (!s) return false;
+  const words = s.trim().split(/\s+/);
+  if (words.length > 12 || s.length > 100) return false;
+  return !JOB_TITLE_BAD_LEAD_WORDS.has(words[0].toLowerCase());
+}
+
 function extractJobTitle({ subject, body }) {
   for (const re of JOB_TITLE_PATTERNS) {
     const match = (subject || '').match(re);
-    if (match) return cleanExtracted(match[1]);
+    if (match) {
+      const cleaned = cleanExtracted(match[1]);
+      if (isPlausibleJobTitle(cleaned)) return cleaned;
+    }
   }
   for (const re of JOB_TITLE_PATTERNS) {
     const match = (body || '').match(re);
-    if (match) return cleanExtracted(match[1]);
+    if (match) {
+      const cleaned = cleanExtracted(match[1]);
+      if (isPlausibleJobTitle(cleaned)) return cleaned;
+    }
   }
   return null;
 }
