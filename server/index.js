@@ -4,6 +4,7 @@ const cors = require('cors')
 const helmet = require('helmet')
 const jobsRouter = require('./routes/jobsRouter')
 const authRouter = require('./routes/authRouter')
+const gmailRouter = require('./routes/gmailRouter')
 
 const app = express();
 
@@ -23,6 +24,7 @@ const PORT = 8000
 
 app.use('/auth', authRouter)
 app.use('/jobs', jobsRouter)
+app.use('/auth/gmail', gmailRouter)
 
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 

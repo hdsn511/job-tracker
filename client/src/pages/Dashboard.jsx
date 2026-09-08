@@ -1,5 +1,6 @@
 import AddJobModal from "@/components/AddJobModal";
 import NavBar from "@/components/NavBar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Trash2 } from "lucide-react";
+import { Mail, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -27,6 +28,8 @@ export default function Dashboard() {
   const [jobs, setJobs] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState(null); // job id
+  const [gmailStatus, setGmailStatus] = useState(null); // { connected, gmailAddress }
+  const [gmailMessage, setGmailMessage] = useState(null); // "connected" | "error"
   const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -54,6 +57,34 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchGmailStatus = () => {
+    fetch(`${API_URL}/auth/gmail/status`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+      .then((response) => response.json())
+      .then((data) => setGmailStatus(data));
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmail = params.get("gmail");
+    if (gmail === "connected" || gmail === "error") {
+      setGmailMessage(gmail);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    fetchGmailStatus();
+  }, []);
+
+  const handleConnectGmail = () => {
+    fetch(`${API_URL}/auth/gmail/connect`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        window.location.href = data.url;
+      });
+  };
+
   const handleDelete = (id) => {
     fetch(`${API_URL}/jobs/${id}`, {
       method: "DELETE",
@@ -79,6 +110,38 @@ export default function Dashboard() {
       <NavBar />
       <main className="flex flex-col p-6 gap-4">
         <h2 className="text-2xl font-semibold text-foreground">My Applications</h2>
+
+        {gmailMessage === "connected" && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+            Gmail connected. New application emails will be picked up automatically.
+          </div>
+        )}
+        {gmailMessage === "error" && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            Couldn&apos;t connect Gmail. Please try again.
+          </div>
+        )}
+
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            {gmailStatus?.connected ? (
+              <span className="text-sm">
+                Gmail connected <Badge variant="secondary">{gmailStatus.gmailAddress}</Badge>
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                Connect Gmail to auto-track applications from your inbox.
+              </span>
+            )}
+          </div>
+          {!gmailStatus?.connected && (
+            <Button variant="outline" size="sm" onClick={handleConnectGmail}>
+              Connect Gmail
+            </Button>
+          )}
+        </div>
+
         <div className="flex items-center justify-between">
           
           <div className="flex gap-3">
