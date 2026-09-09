@@ -35,7 +35,7 @@ export default function FunnelPanel({ apps }) {
         >
           <g transform={`translate(${marginLeft},${marginTop})`}>
             {links.map((link) => (
-              <path key={link.id} d={link.d} fill={link.fill} opacity="0.4" />
+              <path key={link.id} d={link.d} fill={link.fill} opacity="0.45" />
             ))}
             {nodes.map((node) => (
               <rect
@@ -54,7 +54,7 @@ export default function FunnelPanel({ apps }) {
         {nodes.map((node) => (
           <div key={node.id} className="jt-funnel-label" style={node.position}>
             <span className="jt-funnel-label-name">{node.label}</span>
-            <span className="jt-funnel-label-value" style={{ color: node.color }}>
+            <span className="jt-funnel-label-value" style={{ color: node.ink }}>
               {node.value}
             </span>
           </div>

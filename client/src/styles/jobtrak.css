@@ -1,15 +1,48 @@
 /*
- * Dashboard chrome for direction 2a of the frontend-overhaul handoff.
+ * Dashboard chrome — "warm organic" theme.
+ *
  * Layout, spacing, radii and shadows live here; only values that come from
  * data (node colors, cell shades, sankey geometry) are set inline.
+ *
+ * Two rules the data views hold to, and that everything else bends around:
+ *   1. The contribution calendar and the funnel are drawn at a fixed pixel
+ *      size. Extra viewport width becomes margin around them, never wider
+ *      cells or wider gaps.
+ *   2. Only the stat row and the application list take up slack, and the
+ *      stat row does it as four equal columns that cap out with the shell.
  */
+
+/* ---------- texture + decoration ---------- */
+
+/* Mounted once at the root. Above the modal layer (z 60) so no surface in
+   the app ever renders as flat color; never takes a pointer event. */
+.jt-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.015;
+}
+
+.jt-vine {
+  display: block;
+  width: 100%;
+  height: 16px;
+  flex: none;
+  overflow: visible;
+}
+
+/* Roman-arch silhouette: reusable for marks and imagery. */
+.jt-arch {
+  border-radius: var(--jt-radius-arch) var(--jt-radius-arch) 10px 10px;
+}
 
 /* ---------- shared primitives ---------- */
 
 .jt-label {
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--jt-label);
 }
@@ -18,110 +51,138 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 9px;
+  min-height: 44px;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   white-space: nowrap;
-  border-radius: 10px;
-  padding: 9px 14px;
+  border-radius: var(--jt-radius-pill);
+  border: 1px solid transparent;
+  padding: 12px 22px;
   cursor: pointer;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background-color var(--jt-duration-fast) var(--jt-ease),
+    border-color var(--jt-duration-fast) var(--jt-ease),
+    color var(--jt-duration-fast) var(--jt-ease),
+    box-shadow var(--jt-duration-mid) var(--jt-ease),
+    transform var(--jt-duration-mid) var(--jt-ease);
 }
 
 .jt-btn:disabled {
   cursor: default;
-  opacity: 0.55;
+  opacity: 0.45;
 }
 
 .jt-btn-primary {
-  color: oklch(0.99 0.01 300);
-  border: 1px solid oklch(0.62 0.19 300);
-  background: linear-gradient(180deg, oklch(0.62 0.21 300) 0%, oklch(0.44 0.2 297) 100%);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.38),
-    var(--jt-lift);
+  color: #ffffff;
+  background: var(--jt-forest);
+  border-color: var(--jt-forest);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, oklch(0.68 0.21 300) 0%, oklch(0.5 0.2 297) 100%);
+  background: var(--jt-terracotta);
+  border-color: var(--jt-terracotta);
+  box-shadow: var(--jt-shadow-md);
 }
 
+/* Sage at full strength is a graphic value, not a text value, so the
+   border carries the sage and the label uses the text-safe ink. */
 .jt-btn-secondary {
-  color: var(--jt-ink);
-  border: 1px solid oklch(0.38 0.07 300);
-  background: linear-gradient(180deg, oklch(0.33 0.07 300 / 0.95), oklch(0.23 0.045 300 / 0.8));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.14);
+  color: var(--jt-ink-sage);
+  background: transparent;
+  border-color: var(--jt-border-sage);
 }
 
 .jt-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(180deg, oklch(0.39 0.09 300 / 0.95), oklch(0.28 0.055 300 / 0.8));
+  color: var(--jt-ink-terracotta);
+  border-color: var(--jt-terracotta);
+  background: rgba(194, 123, 102, 0.07);
 }
 
 .jt-btn-ghost {
-  color: var(--jt-ink-2);
+  color: var(--jt-ink-3);
   background: transparent;
-  border: 1px solid oklch(0.32 0.05 300);
+  border-color: transparent;
 }
 
 .jt-btn-ghost:hover:not(:disabled) {
-  color: oklch(0.98 0.01 300);
-  border-color: oklch(0.42 0.07 300);
+  color: var(--jt-ink);
+  background: rgba(45, 58, 49, 0.05);
 }
 
 .jt-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .jt-field > label {
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: oklch(0.74 0.06 300);
+  color: var(--jt-label);
 }
 
+/* Underline-only inputs: no box, no ring. The rule under the field turns
+   sage on focus. */
 .jt-input {
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--jt-ink);
-  border: 1px solid var(--jt-border-strong);
-  border-radius: 10px;
-  padding: 11px 13px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--jt-border-strong);
+  border-radius: 0;
+  padding: 9px 2px;
   outline: none;
-  background: oklch(0.14 0.025 300);
-  box-shadow: inset 0 2px 6px oklch(0.08 0.02 300 / 0.6);
-  transition: border-color 120ms ease;
+  transition:
+    border-color var(--jt-duration-fast) var(--jt-ease),
+    box-shadow var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-input:focus {
-  border-color: oklch(0.5 0.14 300);
+  border-bottom-color: var(--jt-sage);
+  box-shadow: 0 1px 0 0 var(--jt-sage);
 }
 
 .jt-input::placeholder {
-  color: oklch(0.55 0.03 300);
+  color: #9aa094;
 }
 
+/* The textarea is the one field that needs a container, so it takes the
+   soft-clay treatment instead of the underline. */
 textarea.jt-input {
-  min-height: 78px;
+  min-height: 84px;
   resize: none;
+  padding: 12px 14px;
+  border: 1px solid var(--jt-border-strong);
+  border-radius: var(--jt-radius-sm);
+  background: var(--jt-surface-alt);
 }
 
-input[type="date"].jt-input {
-  font-weight: 600;
-  font-size: 13px;
-  padding: 11px;
+textarea.jt-input:focus {
+  border-color: var(--jt-sage);
   box-shadow: none;
 }
 
+input[type="date"].jt-input {
+  font-size: 14px;
+  font-weight: 500;
+}
+
 input[type="date"].jt-input::-webkit-calendar-picker-indicator {
-  filter: invert(0.8);
   cursor: pointer;
+  opacity: 0.55;
+  transition: opacity var(--jt-duration-fast) var(--jt-ease);
+}
+
+input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 /* Stage chip — shared by the detail panel and the add/edit form. Colors
@@ -129,17 +190,21 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 .jt-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 700;
-  padding: 7px 11px;
-  border-radius: 9px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: var(--jt-radius-pill);
   cursor: pointer;
   transition:
-    background 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
+    background-color var(--jt-duration-fast) var(--jt-ease),
+    color var(--jt-duration-fast) var(--jt-ease),
+    border-color var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-chip:hover:not(:disabled) {
+  border-color: var(--jt-sage);
 }
 
 /* ---------- shell ---------- */
@@ -150,7 +215,7 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   align-items: flex-start;
   justify-content: center;
   padding: 24px;
-  background: oklch(0.115 0.02 300);
+  background: var(--jt-alabaster);
 }
 
 /* One screen: the frame is the viewport, and the application list is the
@@ -162,18 +227,11 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   height: calc(100vh - 48px);
   min-height: 800px;
   display: flex;
-  border-radius: 18px;
+  border-radius: var(--jt-radius-card);
   overflow: hidden;
-  border: 1px solid var(--jt-border-strong);
-  background: linear-gradient(
-    168deg,
-    oklch(0.2 0.045 300) 0%,
-    oklch(0.145 0.028 300) 52%,
-    oklch(0.17 0.035 300) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.1),
-    var(--jt-elevation);
+  border: 1px solid var(--jt-border);
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow-lg);
   color: var(--jt-ink);
 }
 
@@ -182,69 +240,72 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 .jt-rail {
   width: 224px;
   flex: none;
-  padding: 22px 16px;
+  padding: 26px 18px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 28px;
   border-right: 1px solid var(--jt-border);
-  background: linear-gradient(180deg, oklch(0.24 0.06 300 / 0.75) 0%, oklch(0.17 0.035 300 / 0.4) 100%);
-  box-shadow: inset -1px 0 0 oklch(1 0 0 / 0.04);
+  background: var(--jt-surface-alt);
 }
 
 .jt-logo {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 2px 6px;
+  gap: 12px;
+  padding: 2px 4px;
 }
 
+/* Arch, not a rounded square: the theme's one structural motif, used at
+   the smallest scale it still reads at. */
 .jt-logo-mark {
   width: 34px;
-  height: 34px;
+  height: 38px;
   flex: none;
-  border-radius: 11px;
+  border-radius: 17px 17px 6px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, oklch(0.68 0.2 300) 0%, oklch(0.44 0.2 296) 100%);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.45),
-    inset 0 -2px 6px oklch(0.25 0.15 300 / 0.6),
-    0 6px 14px -6px oklch(0.45 0.22 300 / 0.8);
+  color: var(--jt-forest);
+  background: var(--jt-clay);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-wordmark {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.045em;
-  line-height: 1;
-  background: linear-gradient(180deg, oklch(0.99 0.01 300) 0%, oklch(0.8 0.1 300) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--jt-ink);
+}
+
+.jt-wordmark em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--jt-ink-sage);
 }
 
 .jt-sublabel {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.22em;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: oklch(0.74 0.08 300);
+  color: var(--jt-label);
 }
 
 .jt-rail-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .jt-rail-heading {
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--jt-label);
-  padding: 0 8px 5px 8px;
+  padding: 0 12px 10px 12px;
 }
 
 .jt-stage-btn {
@@ -252,42 +313,45 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  min-height: 44px;
   font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   text-align: left;
   border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 9px 11px;
+  border-radius: var(--jt-radius-pill);
+  padding: 10px 14px;
   cursor: pointer;
   background: transparent;
   color: var(--jt-ink-2);
-  transition: color 120ms ease;
+  transition:
+    background-color var(--jt-duration-fast) var(--jt-ease),
+    color var(--jt-duration-fast) var(--jt-ease),
+    border-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-stage-btn:hover {
-  color: oklch(0.98 0.01 300);
+  color: var(--jt-ink);
+  background: rgba(45, 58, 49, 0.045);
 }
 
 .jt-stage-btn[aria-pressed="true"] {
-  background: linear-gradient(180deg, oklch(0.44 0.16 300) 0%, oklch(0.32 0.13 298) 100%);
-  color: oklch(0.99 0.01 300);
-  border-color: oklch(0.54 0.16 300);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.24),
-    0 8px 16px -10px oklch(0.45 0.2 300 / 0.9);
+  background: var(--jt-forest);
+  color: #ffffff;
+  border-color: var(--jt-forest);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-stage-count {
   font-size: 12px;
-  font-weight: 700;
-  opacity: 0.8;
+  font-weight: 600;
+  opacity: 0.75;
 }
 
 .jt-rail-foot {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 12px;
   margin-top: auto;
 }
 
@@ -295,34 +359,33 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 .jt-rail-actions {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .jt-rail-actions .jt-btn {
   justify-content: flex-start;
   width: 100%;
-  font-size: 12.5px;
-  padding: 9px 11px;
+  padding: 12px 16px;
 }
 
 .jt-sync-card {
-  border: 1px solid oklch(0.32 0.05 300);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid var(--jt-border);
+  border-radius: var(--jt-radius-panel);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  background: linear-gradient(170deg, oklch(0.27 0.06 300 / 0.8), oklch(0.19 0.03 300 / 0.5));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08);
+  gap: 8px;
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-sync-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 9px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: oklch(0.9 0.02 300);
+  color: var(--jt-ink);
 }
 
 .jt-sync-dot {
@@ -330,36 +393,39 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   height: 7px;
   flex: none;
   border-radius: 50%;
-  background: oklch(0.82 0.17 150);
-  box-shadow: 0 0 8px oklch(0.82 0.17 150 / 0.9);
+  background: var(--jt-moss);
+  box-shadow: 0 0 0 4px rgba(92, 138, 102, 0.16);
 }
 
 .jt-sync-dot.is-off {
-  background: oklch(0.6 0.03 300);
-  box-shadow: none;
+  background: var(--jt-clay);
+  box-shadow: 0 0 0 4px rgba(220, 207, 194, 0.35);
 }
 
 .jt-sync-meta {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
   color: var(--jt-ink-3);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .jt-sync-link {
   align-self: flex-start;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--jt-accent-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--jt-ink-terracotta);
   background: none;
   border: none;
-  padding: 0;
+  padding: 2px 0;
   cursor: pointer;
+  border-bottom: 1px solid rgba(194, 123, 102, 0.4);
+  transition: border-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-sync-link:hover {
-  color: oklch(0.9 0.12 300);
+  border-bottom-color: var(--jt-terracotta);
 }
 
 /* ---------- main column ---------- */
@@ -369,44 +435,68 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background: var(--jt-alabaster);
 }
 
 /* The funnel is the one block allowed to give up height when the window is
    short, so the application list keeps a usable amount of the screen. */
 .jt-funnel-section {
-  /* 22 + 372 stage + 14 panel chrome + 20 at full size, shrinking to a
-     236px stage before the list gives up any of its own height. */
   flex: 0 1 auto;
-  height: 428px;
-  min-height: 290px;
+  /* 24 top + 29 head + 10 gap + 392 panel + 4 bottom: the flow at its
+     natural 372px aspect. Shrinks to 300 before the list gives up any
+     of its own height. */
+  height: 459px;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
-  padding: 22px 26px 20px 26px;
-  border-bottom: 1px solid oklch(0.28 0.04 300);
-  background: linear-gradient(180deg, oklch(0.26 0.06 300 / 0.45) 0%, transparent 100%);
+  gap: 10px;
+  padding: 24px 26px 4px 26px;
 }
 
+.jt-funnel-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.jt-funnel-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--jt-ink);
+}
+
+.jt-funnel-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--jt-ink-sage);
+}
+
+/* The flow is drawn at a fixed 944px. Extra width becomes margin (the
+   stage is centred); a narrower window scrolls rather than clipping the
+   end labels or squeezing the columns together. */
 .jt-funnel-panel {
   flex: 1;
   min-height: 0;
-  display: flex;
   border: 1px solid var(--jt-border);
-  border-radius: 14px;
-  padding: 8px 10px 4px 10px;
-  background: linear-gradient(170deg, oklch(0.23 0.05 300 / 0.7), oklch(0.16 0.03 300 / 0.5));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.07);
-  /* The flow is drawn at a fixed 944px; below the design's 1240px window it
-     scrolls rather than clipping the end labels. */
+  border-radius: var(--jt-radius-card);
+  padding: 12px 16px 6px 16px;
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow);
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 .jt-funnel-section.is-empty {
-  height: 130px;
-  min-height: 130px;
+  height: 176px;
+  min-height: 176px;
 }
 
 .jt-funnel-panel.is-empty {
+  display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -414,8 +504,12 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 
 .jt-funnel-stage {
   position: relative;
-  flex: none;
   width: 944px;
+  height: 100%;
+  /* Block-level auto margins rather than flex centring: when the panel is
+     narrower than 944 these resolve to 0 instead of pushing the left edge
+     out of the scroll range. */
+  margin: 0 auto;
 }
 
 .jt-funnel-label {
@@ -426,27 +520,30 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 }
 
 .jt-funnel-label-name {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: oklch(0.95 0.015 300);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--jt-ink-2);
   white-space: nowrap;
 }
 
 .jt-funnel-label-value {
-  font-size: 12.5px;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
 }
 
 /* ---------- activity row ---------- */
 
+/* Calendar at its natural (fixed) size, stats taking the slack as four
+   equal columns. Nothing in this row is a percentage of the viewport. */
 .jt-activity {
   flex: none;
-  padding: 20px 26px;
-  border-bottom: 1px solid oklch(0.28 0.04 300);
+  padding: 14px 26px 22px 26px;
   display: flex;
   align-items: stretch;
-  gap: 22px;
+  gap: 14px;
 }
 
 .jt-calendar {
@@ -454,99 +551,138 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--jt-border);
+  border-radius: var(--jt-radius-card);
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-calendar-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
 }
 
 .jt-calendar-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--jt-ink-4);
+}
+
+.jt-calendar-weeks {
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--jt-ink-4);
 }
 
 .jt-calendar-legend span[data-swatch] {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 3px;
 }
 
+/* Fixed track and fixed gap: a wider window gets more margin, never
+   fatter weeks. */
 .jt-calendar-grid {
   display: grid;
   grid-template-rows: repeat(7, 15px);
   grid-auto-flow: column;
+  grid-auto-columns: 15px;
   gap: 4px;
+  justify-content: start;
 }
 
 .jt-calendar-cell {
   width: 15px;
   height: 15px;
   border-radius: 4px;
+  transition: transform var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-calendar-cell:hover {
+  transform: scale(1.18);
 }
 
 .jt-calendar-foot {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 11.5px;
-  font-weight: 600;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
   color: var(--jt-ink-4);
 }
 
+.jt-calendar-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .jt-calendar-foot strong {
-  color: oklch(0.92 0.02 300);
-  font-weight: 700;
+  color: var(--jt-ink-2);
+  font-weight: 600;
 }
 
 .jt-stats {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
+/* Label and value sit together at the top, the note is pinned to the
+   bottom edge: every value lands on the same baseline across the row
+   however many lines its note runs to. */
 .jt-stat {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 12px 15px;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 16px 18px;
   border: 1px solid var(--jt-border);
-  border-radius: 13px;
-  background: linear-gradient(168deg, oklch(0.24 0.055 300 / 0.75), oklch(0.17 0.032 300 / 0.55));
-  box-shadow: var(--jt-gloss);
+  border-radius: var(--jt-radius-card);
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow);
+  transition:
+    transform var(--jt-duration-mid) var(--jt-ease),
+    box-shadow var(--jt-duration-mid) var(--jt-ease);
 }
 
-/* Deliberately lighter than the rest of the type ramp: these numbers are
-   the largest thing on the page, so 800-weight read as shouty. */
+.jt-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--jt-shadow-md);
+}
+
 .jt-stat-label {
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: oklch(0.7 0.045 300);
+  color: var(--jt-label);
 }
 
+/* The largest type on the page, so it carries the display face. */
 .jt-stat-value {
-  font-size: 25px;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .jt-stat-note {
+  margin-top: auto;
+  padding-top: 10px;
   font-size: 11.5px;
-  font-weight: 500;
-  color: oklch(0.66 0.03 300);
+  color: var(--jt-ink-3);
+  line-height: 1.35;
 }
 
 /* ---------- list + detail ---------- */
@@ -557,6 +693,22 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   flex: 1 1 0;
   display: flex;
   min-height: 300px;
+  background: var(--jt-surface);
+}
+
+/* Vine rule standing in for the border between the activity strip and the
+   list; aligned to the main column's gutter. */
+.jt-section-rule {
+  flex: none;
+  padding: 0 26px 6px 26px;
+}
+
+/* Small print inside the detail panel — the auth screens' 15px body copy
+   is too loud at this width. */
+.jt-hint {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--jt-ink-3);
 }
 
 .jt-list {
@@ -571,38 +723,38 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 .jt-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
   text-align: left;
   font-family: inherit;
   color: inherit;
-  padding: 14px 26px;
+  padding: 15px 26px;
   border: none;
-  border-bottom: 1px solid oklch(0.24 0.035 300);
+  border-bottom: 1px solid var(--jt-border);
   cursor: pointer;
   background: transparent;
-  transition: background 120ms ease;
+  transition: background-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-row:hover {
-  background: oklch(0.24 0.05 300 / 0.5);
+  background: rgba(242, 240, 235, 0.85);
 }
 
 .jt-row[aria-selected="true"] {
-  background: linear-gradient(90deg, oklch(0.3 0.07 300 / 0.75), oklch(0.22 0.045 300 / 0.35));
+  background: var(--jt-surface-alt);
 }
 
 .jt-row-bar {
   width: 3px;
-  height: 32px;
-  border-radius: 2px;
+  height: 34px;
+  border-radius: var(--jt-radius-pill);
   flex: none;
   background: transparent;
+  transition: background-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-row[aria-selected="true"] .jt-row-bar {
-  background: var(--jt-selection);
-  box-shadow: 0 0 12px oklch(0.62 0.2 300 / 0.8);
+  background: var(--jt-terracotta);
 }
 
 .jt-row-text {
@@ -614,14 +766,16 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 }
 
 .jt-row-company {
-  font-size: 14.5px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--jt-ink);
 }
 
 .jt-row-title {
-  font-size: 12.5px;
-  color: oklch(0.74 0.03 300);
+  font-size: 13px;
+  color: var(--jt-ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -629,7 +783,6 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 
 .jt-row-date {
   font-size: 12px;
-  font-weight: 700;
   color: var(--jt-ink-4);
   width: 58px;
   text-align: right;
@@ -641,69 +794,78 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   align-items: center;
   gap: 7px;
   flex: none;
-  height: 32px;
-  padding: 0 13px;
-  border-radius: 10px;
-  font-size: 12.5px;
-  font-weight: 700;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1);
+  height: 30px;
+  padding: 0 14px;
+  border-radius: var(--jt-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .jt-empty {
-  padding: 56px 26px;
+  padding: 64px 26px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-align: center;
   color: var(--jt-ink-3);
 }
 
 .jt-empty-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: oklch(0.92 0.02 300);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--jt-ink);
+}
+
+.jt-empty-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--jt-ink-sage);
 }
 
 .jt-empty-note {
-  font-size: 13px;
-  max-width: 340px;
-  line-height: 1.5;
+  font-size: 14px;
+  max-width: 360px;
+  line-height: 1.6;
+  color: var(--jt-ink-3);
 }
 
 .jt-detail {
   width: 334px;
   flex: none;
-  padding: 22px;
+  padding: 26px 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   border-left: 1px solid var(--jt-border);
-  background: linear-gradient(200deg, oklch(0.24 0.055 300 / 0.7) 0%, oklch(0.16 0.03 300 / 0.5) 100%);
-  box-shadow: inset 1px 0 0 oklch(1 0 0 / 0.05);
+  background: var(--jt-surface-alt);
   overflow-y: auto;
 }
 
 .jt-detail-section {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 
 .jt-detail-company {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--jt-ink);
 }
 
 .jt-detail-role {
-  font-size: 13px;
-  color: oklch(0.78 0.03 300);
+  font-size: 14px;
+  color: var(--jt-ink-2);
 }
 
 .jt-detail-meta {
   font-size: 12px;
-  font-weight: 600;
   color: var(--jt-ink-3);
 }
 
@@ -713,66 +875,86 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   gap: 7px;
 }
 
+/* The parsed timeline reads as a vine: a hairline root with a bud at each
+   event. */
 .jt-timeline {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  padding-left: 15px;
-  border-left: 1px solid oklch(0.36 0.06 300);
+  gap: 14px;
+  padding-left: 18px;
+  border-left: 1px solid var(--jt-border-strong);
 }
 
 .jt-timeline-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+.jt-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--jt-sage);
+}
+
 .jt-timeline-date {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: oklch(0.74 0.05 300);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--jt-label);
 }
 
 .jt-timeline-text {
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--jt-ink-1);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--jt-ink-2);
 }
 
 .jt-detail-foot {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
   margin-top: auto;
 }
 
 .jt-btn-panel {
   width: 100%;
   color: var(--jt-ink);
-  border: 1px solid oklch(0.36 0.06 300);
-  padding: 10px;
-  background: linear-gradient(180deg, oklch(0.3 0.06 300 / 0.9), oklch(0.22 0.04 300 / 0.7));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.1);
+  background: var(--jt-surface);
+  border-color: var(--jt-border-strong);
+  box-shadow: var(--jt-shadow);
 }
 
 .jt-btn-panel:hover:not(:disabled) {
-  background: linear-gradient(180deg, oklch(0.36 0.07 300 / 0.9), oklch(0.26 0.05 300 / 0.7));
+  color: var(--jt-ink-terracotta);
+  border-color: var(--jt-terracotta);
+  transform: translateY(-1px);
+  box-shadow: var(--jt-shadow-md);
 }
 
 .jt-btn-danger-text {
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 10.5px;
   font-weight: 600;
-  color: oklch(0.74 0.11 25);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--jt-ink-3);
   background: transparent;
   border: none;
-  padding: 4px;
+  padding: 8px 4px;
   cursor: pointer;
+  transition: color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-btn-danger-text:hover {
-  color: oklch(0.84 0.12 25);
+  color: var(--jt-ink-terracotta);
 }
 
 /* ---------- modal ---------- */
@@ -780,7 +962,8 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 .jt-overlay {
   position: fixed;
   inset: 0;
-  background: oklch(0.1 0.03 300 / 0.72);
+  background: rgba(45, 58, 49, 0.28);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -789,18 +972,18 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
 }
 
 .jt-dialog {
-  width: 470px;
+  width: 480px;
   max-width: 100%;
-  border: 1px solid oklch(0.36 0.06 300);
-  border-radius: 18px;
-  padding: 26px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border: 1px solid var(--jt-border);
+  border-radius: var(--jt-radius-card);
+  padding: 30px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  background: linear-gradient(168deg, oklch(0.24 0.055 300) 0%, oklch(0.165 0.03 300) 100%);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.12),
-    0 40px 80px -30px oklch(0.05 0.04 300 / 0.9);
+  gap: 22px;
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow-xl);
   color: var(--jt-ink);
 }
 
@@ -808,37 +991,51 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .jt-dialog-title {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.jt-dialog-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--jt-ink-sage);
 }
 
 .jt-dialog-close {
   background: transparent;
   border: none;
-  color: var(--jt-ink-4);
-  font-size: 19px;
+  color: var(--jt-ink-3);
+  font-size: 22px;
   line-height: 1;
+  padding: 4px 10px;
+  border-radius: var(--jt-radius-pill);
   cursor: pointer;
+  transition:
+    color var(--jt-duration-fast) var(--jt-ease),
+    background-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-dialog-close:hover {
   color: var(--jt-ink);
+  background: rgba(45, 58, 49, 0.05);
 }
 
 .jt-dialog-fields {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 18px;
 }
 
 .jt-dialog-split {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 13px;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
 }
 
 .jt-dialog-foot {
@@ -854,78 +1051,88 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 24px;
-  background: oklch(0.115 0.02 300);
+  padding: 40px 24px;
+  background: var(--jt-alabaster);
 }
 
+/* Arched top edge: the same motif as the logo mark, at page scale. */
 .jt-auth-card {
-  width: 420px;
+  width: 440px;
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 30px;
-  border-radius: 18px;
-  border: 1px solid var(--jt-border-strong);
-  background: linear-gradient(168deg, oklch(0.2 0.045 300) 0%, oklch(0.145 0.028 300) 100%);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.1),
-    var(--jt-elevation);
+  gap: 26px;
+  padding: 38px 34px 34px 34px;
+  border-radius: var(--jt-radius-arch) var(--jt-radius-arch) var(--jt-radius-card)
+    var(--jt-radius-card);
+  border: 1px solid var(--jt-border);
+  background: var(--jt-surface);
+  box-shadow: var(--jt-shadow-lg);
   color: var(--jt-ink);
 }
 
 .jt-auth-card.is-wide {
-  width: 470px;
+  width: 520px;
 }
 
 .jt-auth-title {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  color: var(--jt-ink);
+}
+
+.jt-auth-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--jt-ink-sage);
 }
 
 .jt-auth-sub {
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.65;
   color: var(--jt-ink-3);
 }
 
 .jt-auth-form {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 20px;
 }
 
 .jt-auth-switch {
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
   color: var(--jt-ink-3);
 }
 
 .jt-auth-switch button {
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--jt-accent-text);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jt-ink-terracotta);
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
+  border-bottom: 1px solid rgba(194, 123, 102, 0.4);
+  transition: border-color var(--jt-duration-fast) var(--jt-ease);
 }
 
 .jt-auth-switch button:hover {
-  color: oklch(0.9 0.12 300);
+  border-bottom-color: var(--jt-terracotta);
 }
 
 .jt-notice {
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.45;
-  border-radius: 10px;
-  padding: 10px 12px;
-  border: 1px solid oklch(0.45 0.1 25);
-  background: oklch(0.32 0.07 25 / 0.45);
-  color: oklch(0.88 0.08 25);
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: var(--jt-radius-sm);
+  padding: 12px 16px;
+  border: 1px solid rgba(194, 123, 102, 0.45);
+  background: rgba(194, 123, 102, 0.1);
+  color: var(--jt-ink-terracotta);
 }
 
 /* Dashboard-wide status line above the funnel; click to dismiss. */
@@ -938,47 +1145,48 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   cursor: pointer;
   border-radius: 0;
   border-width: 0 0 1px 0;
-  padding: 11px 26px;
+  padding: 13px 26px;
 }
 
 .jt-notice.is-good {
-  border-color: oklch(0.46 0.12 150);
-  background: oklch(0.32 0.09 150 / 0.45);
-  color: var(--jt-green);
+  border-color: rgba(92, 138, 102, 0.4);
+  background: rgba(92, 138, 102, 0.1);
+  color: var(--jt-ink-moss);
 }
 
 .jt-steps {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 16px;
 }
 
 .jt-step {
   display: flex;
   align-items: flex-start;
-  gap: 11px;
-  font-size: 13px;
-  line-height: 1.45;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--jt-ink-2);
 }
 
+/* Numerals float in a pale circle rather than sitting in a heavy box. */
 .jt-step-num {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  border-radius: 7px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: oklch(0.99 0.01 300);
-  background: linear-gradient(180deg, oklch(0.44 0.16 300), oklch(0.32 0.13 298));
-  border: 1px solid oklch(0.54 0.16 300);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jt-ink-sage);
+  background: rgba(140, 154, 132, 0.18);
 }
 
 .jt-spin {
-  animation: jt-spin 900ms linear infinite;
+  animation: jt-spin 1400ms linear infinite;
 }
 
 @keyframes jt-spin {
@@ -987,8 +1195,178 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator {
   }
 }
 
+/* Reveal for the one-shot screens: opacity plus a short rise. */
+@keyframes jt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.jt-auth-card,
+.jt-dialog {
+  animation: jt-rise var(--jt-duration-slow) var(--jt-ease) both;
+}
+
+/* ---------- responsive ---------- */
+
+/* The stat row is the only part of the activity strip that reflows; the
+   calendar keeps its fixed cell size at every width. */
+@media (max-width: 1180px) {
+  .jt-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .jt-page {
+    padding: 0;
+  }
+
+  .jt-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    flex-direction: column;
+    border-radius: 0;
+    border-width: 0;
+    box-shadow: none;
+  }
+
+  .jt-rail {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--jt-border);
+    gap: 22px;
+  }
+
+  .jt-rail-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .jt-rail-heading {
+    width: 100%;
+    padding: 0 0 4px 0;
+  }
+
+  .jt-stage-btn {
+    width: auto;
+    gap: 10px;
+    border-color: var(--jt-border);
+  }
+
+  .jt-rail-foot {
+    margin-top: 0;
+  }
+
+  .jt-funnel-section,
+  .jt-funnel-section.is-empty {
+    height: auto;
+    min-height: 0;
+  }
+
+  /* Every block sizes to its own content and the page scrolls, rather than
+     the shell dividing a fixed viewport height between them. */
+  .jt-funnel-panel {
+    flex: none;
+    height: 340px;
+  }
+
+  .jt-funnel-section.is-empty .jt-funnel-panel {
+    height: 120px;
+  }
+
+  .jt-activity {
+    flex-direction: column;
+  }
+
+  .jt-calendar {
+    align-self: flex-start;
+  }
+
+  .jt-body {
+    flex: none;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .jt-list {
+    flex: none;
+    overflow-y: visible;
+  }
+
+  .jt-detail {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--jt-border);
+    overflow-y: visible;
+  }
+}
+
+@media (max-width: 620px) {
+  .jt-funnel-section {
+    padding: 20px 16px 4px 16px;
+  }
+
+  .jt-activity {
+    padding: 12px 16px 18px 16px;
+  }
+
+  .jt-row,
+  .jt-banner,
+  .jt-section-rule {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .jt-rail {
+    padding: 20px 16px;
+  }
+
+  .jt-detail {
+    padding: 22px 16px;
+  }
+
+  .jt-auth-card {
+    padding: 30px 22px 26px 22px;
+  }
+
+  .jt-auth-title {
+    font-size: 28px;
+  }
+
+  .jt-dialog {
+    padding: 24px 20px;
+  }
+
+  .jt-dialog-split {
+    grid-template-columns: 1fr;
+  }
+
+  .jt-stats {
+    gap: 10px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .jt-spin {
     animation: none;
+  }
+
+  .jt-auth-card,
+  .jt-dialog {
+    animation: none;
+  }
+
+  .jt-stat:hover,
+  .jt-btn-panel:hover:not(:disabled),
+  .jt-calendar-cell:hover {
+    transform: none;
   }
 }

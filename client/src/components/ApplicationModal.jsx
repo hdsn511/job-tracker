@@ -75,7 +75,15 @@ export default function ApplicationModal({ open, application, onClose, onSave, s
       >
         <div className="jt-dialog-head">
           <div className="jt-dialog-title">
-            {application ? "Edit application" : "Add application"}
+            {application ? (
+              <>
+                Edit <em>application</em>
+              </>
+            ) : (
+              <>
+                Add an <em>application</em>
+              </>
+            )}
           </div>
           <button type="button" className="jt-dialog-close" aria-label="Close" onClick={onClose}>
             &times;
@@ -109,7 +117,7 @@ export default function ApplicationModal({ open, application, onClose, onSave, s
           <div className="jt-dialog-split">
             <div className="jt-field">
               <label htmlFor="jt-stage">Stage</label>
-              <div className="jt-chip-row" id="jt-stage" style={{ gap: 6 }}>
+              <div className="jt-chip-row" id="jt-stage">
                 {STAGES.map((stage) => (
                   <StageChip
                     key={stage}

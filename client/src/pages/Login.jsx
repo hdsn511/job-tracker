@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/dashboard/icons";
+import VineDivider from "@/components/VineDivider";
 import { api, setToken } from "@/lib/api";
 import "@/styles/jobtrak.css";
 
@@ -76,14 +77,26 @@ export default function Login() {
       <form className="jt-auth-card" onSubmit={handleSubmit}>
         <Wordmark />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="jt-auth-title">{isRegister ? "Create your account" : "Welcome back"}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="jt-auth-title">
+            {isRegister ? (
+              <>
+                Create your <em>account</em>
+              </>
+            ) : (
+              <>
+                Welcome <em>back</em>
+              </>
+            )}
+          </div>
           <div className="jt-auth-sub">
             {isRegister
               ? "Track every application in one pipeline, built from your inbox."
               : "Pick up where your pipeline left off."}
           </div>
         </div>
+
+        <VineDivider />
 
         <div className="jt-auth-form">
           <div className="jt-field">
@@ -118,7 +131,6 @@ export default function Login() {
             type="submit"
             className="jt-btn jt-btn-primary"
             disabled={submitting}
-            style={{ padding: 11, fontSize: 13.5, borderRadius: 11 }}
           >
             {submitting ? "Just a moment…" : isRegister ? "Create account" : "Log in"}
           </button>

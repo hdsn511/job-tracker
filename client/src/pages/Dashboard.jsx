@@ -6,6 +6,7 @@ import ApplicationList from "@/components/dashboard/ApplicationList";
 import DetailPanel from "@/components/dashboard/DetailPanel";
 import FunnelPanel from "@/components/dashboard/FunnelPanel";
 import Rail from "@/components/dashboard/Rail";
+import VineDivider from "@/components/VineDivider";
 import { api, clearToken } from "@/lib/api";
 import {
   parsedEventCount,
@@ -245,10 +246,22 @@ export default function Dashboard() {
           ) : null}
 
           <div className={`jt-funnel-section${apps.length ? "" : " is-empty"}`}>
+            <div className="jt-funnel-head">
+              <h1 className="jt-funnel-title">
+                Your <em>pipeline</em>
+              </h1>
+              <span className="jt-label">
+                {apps.length} tracked &middot; {counts.Interviewing} interviewing
+              </span>
+            </div>
             <FunnelPanel apps={apps} />
           </div>
 
           <ActivityRow apps={apps} />
+
+          <div className="jt-section-rule">
+            <VineDivider />
+          </div>
 
           <div className="jt-body">
             <ApplicationList
@@ -260,11 +273,19 @@ export default function Dashboard() {
                   ? { title: "Loading applications…", note: "" }
                   : apps.length
                     ? {
-                        title: `No ${filter.toLowerCase()} applications`,
+                        title: (
+                          <>
+                            No <em>{filter.toLowerCase()}</em> applications
+                          </>
+                        ),
                         note: "Pick another stage in the rail to see the rest of the pipeline.",
                       }
                     : {
-                        title: "Nothing tracked yet",
+                        title: (
+                          <>
+                            Nothing tracked <em>yet</em>
+                          </>
+                        ),
                         note: gmail.connected
                           ? "Resync your inbox to pull in application emails, or add one by hand."
                           : "Connect Gmail to pull applications out of your inbox, or add one by hand."

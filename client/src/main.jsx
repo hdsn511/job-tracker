@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import PaperGrainOverlay from "@/components/PaperGrainOverlay";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConnectGmail from "@/pages/ConnectGmail";
 import Dashboard from "@/pages/Dashboard";
@@ -9,6 +10,7 @@ import "./index.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
+    <PaperGrainOverlay />
     <BrowserRouter>
       <Routes>
         {/* login / register -> connect gmail -> dashboard */}

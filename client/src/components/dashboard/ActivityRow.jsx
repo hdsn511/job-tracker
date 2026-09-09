@@ -15,13 +15,7 @@ export default function ActivityRow({ apps }) {
       <div className="jt-calendar">
         <div className="jt-calendar-head">
           <span className="jt-label">Application activity</span>
-          <div className="jt-calendar-legend">
-            <span>less</span>
-            {CAL_SHADES.map((shade) => (
-              <span key={shade} data-swatch style={{ background: shade }} />
-            ))}
-            <span>more</span>
-          </div>
+          <span className="jt-calendar-weeks">{calendar.weeks} weeks</span>
         </div>
 
         <div className="jt-calendar-grid">
@@ -30,19 +24,27 @@ export default function ActivityRow({ apps }) {
               key={cell.iso}
               className="jt-calendar-cell"
               title={cell.tip}
-              style={{ background: cell.background, boxShadow: cell.glow }}
+              style={{ background: cell.background, boxShadow: cell.ring }}
             />
           ))}
         </div>
 
         <div className="jt-calendar-foot">
-          <span>{calendar.weeks} weeks</span>
-          <span>
-            busiest week &mdash; <strong>{calendar.busiestWeek}</strong>
-          </span>
-          <span>
-            active days &mdash; <strong>{calendar.activeDays}</strong>
-          </span>
+          <div className="jt-calendar-legend">
+            <span>less</span>
+            {CAL_SHADES.map((shade) => (
+              <span key={shade} data-swatch style={{ background: shade }} />
+            ))}
+            <span>more</span>
+          </div>
+          <div className="jt-calendar-summary">
+            <span>
+              busiest week &mdash; <strong>{calendar.busiestWeek}</strong>
+            </span>
+            <span>
+              active days &mdash; <strong>{calendar.activeDays}</strong>
+            </span>
+          </div>
         </div>
       </div>
 

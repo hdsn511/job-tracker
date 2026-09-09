@@ -17,7 +17,7 @@ export function StatusBadge({ status }) {
 
 /**
  * The same palette as a toggle — used for the detail panel's stage picker
- * and the add/edit form. Unselected chips drop back to the neutral inset.
+ * and the add/edit form. Unselected chips drop back to a plain stone outline.
  */
 export function StageChip({ status, selected, onClick, disabled }) {
   const tone = BADGE[status] || BADGE.Applied;
@@ -29,10 +29,9 @@ export function StageChip({ status, selected, onClick, disabled }) {
       disabled={disabled}
       onClick={onClick}
       style={{
-        background: selected ? tone.bg : "oklch(0.22 0.04 300 / 0.6)",
-        color: selected ? tone.fg : "oklch(0.72 0.03 300)",
-        border: `1px solid ${selected ? tone.bd : "oklch(0.32 0.045 300)"}`,
-        boxShadow: selected ? "inset 0 1px 0 oklch(1 0 0 / 0.14)" : "none",
+        background: selected ? tone.bg : "transparent",
+        color: selected ? tone.fg : "var(--jt-ink-3)",
+        border: `1px solid ${selected ? tone.bd : "var(--jt-border-strong)"}`,
       }}
     >
       <StageIcon dash={tone.dash} path={tone.path} size={14} />

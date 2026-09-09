@@ -6,45 +6,46 @@
 
 export const STAGES = ["Applied", "Interviewing", "Offer", "Rejected"];
 
-/** Per-stage badge palette (text / fill / border / icon) from the handoff. */
+/**
+ * Per-stage badge palette (text / fill / border / icon).
+ *
+ * `fg` is always a text-safe ink — the earthy palette's mid tones (sage,
+ * clay, terracotta) are graphic values and would fall under 4.5:1 as type.
+ */
 export const BADGE = {
   Applied: {
-    fg: "oklch(0.82 0.13 300)",
-    bg: "oklch(0.34 0.10 300 / 0.55)",
-    bd: "oklch(0.46 0.13 300)",
+    fg: "#55694b",
+    bg: "#e9ede2",
+    bd: "#cdd7c2",
     dash: "",
     path: "M12 6.5v6l2.6 3.4",
   },
   Interviewing: {
-    fg: "oklch(0.86 0.14 88)",
-    bg: "oklch(0.34 0.08 88 / 0.42)",
-    bd: "oklch(0.48 0.11 88)",
+    fg: "#8a6224",
+    bg: "#f6ecda",
+    bd: "#e5d1a9",
     dash: "3.6 3.6",
     path: "",
   },
   Offer: {
-    fg: "oklch(0.84 0.15 150)",
-    bg: "oklch(0.32 0.09 150 / 0.45)",
-    bd: "oklch(0.46 0.12 150)",
+    fg: "#3f6b4f",
+    bg: "#e2ede4",
+    bd: "#bdd6c2",
     dash: "",
     path: "m8.6 12.2 2.3 2.3 4.5-4.7",
   },
   Rejected: {
-    fg: "oklch(0.78 0.11 25)",
-    bg: "oklch(0.32 0.07 25 / 0.45)",
-    bd: "oklch(0.45 0.10 25)",
+    fg: "#9e5540",
+    bg: "#f7e6df",
+    bd: "#e9c6b8",
     dash: "",
     path: "m15 9-6 6M9 9l6 6",
   },
 };
 
-export const CAL_SHADES = [
-  "oklch(0.245 0.022 300)",
-  "oklch(0.38 0.10 300)",
-  "oklch(0.50 0.155 300)",
-  "oklch(0.61 0.195 300)",
-  "oklch(0.73 0.20 300)",
-];
+/* Empty -> busiest, on a single sage ramp so the grid reads as one plant
+   rather than five colors. */
+export const CAL_SHADES = ["#ebe8e0", "#d8dfcd", "#b7c4a7", "#93a487", "#64775a"];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_LONG = [
@@ -171,15 +172,18 @@ export function sankeyModel(apps) {
   const reviewed = rejected + interview;
   const noResponse = Math.max(total - reviewed, 0);
 
+  // `color` fills the node bar and its ribbons; `ink` is the text-safe
+  // version used for the value under the label. Hues run cool-to-warm
+  // left to right so a column reads as a stage, not a rainbow.
   const nodes = [
-    { id: "apps", col: 0, label: "Applications", value: total, color: "oklch(0.62 0.19 300)" },
-    { id: "rev", col: 1, label: "Reviewed", value: reviewed, color: "oklch(0.68 0.16 300)" },
-    { id: "nores", col: 1, label: "No response", value: noResponse, color: "oklch(0.54 0.025 300)" },
-    { id: "int", col: 2, label: "Interview", value: interview, color: "oklch(0.74 0.14 300)" },
-    { id: "rej", col: 2, label: "Rejected", value: rejected, color: "oklch(0.66 0.13 25)" },
-    { id: "prog", col: 3, label: "Still in loop", value: inProgress, color: "oklch(0.82 0.15 88)" },
-    { id: "off", col: 3, label: "Offer", value: offer, color: "oklch(0.80 0.15 150)" },
-    { id: "pend", col: 4, label: "Pending decision", value: offer, color: "oklch(0.84 0.16 150)" },
+    { id: "apps", col: 0, label: "Applications", value: total, color: "#7e8f73", ink: "#4f6047" },
+    { id: "rev", col: 1, label: "Reviewed", value: reviewed, color: "#8c9a84", ink: "#55694b" },
+    { id: "nores", col: 1, label: "No response", value: noResponse, color: "#c6beb1", ink: "#6b6255" },
+    { id: "int", col: 2, label: "Interview", value: interview, color: "#6f8f7a", ink: "#3f6b57" },
+    { id: "rej", col: 2, label: "Rejected", value: rejected, color: "#c27b66", ink: "#9e5540" },
+    { id: "prog", col: 3, label: "Still in loop", value: inProgress, color: "#c9a25c", ink: "#8a6224" },
+    { id: "off", col: 3, label: "Offer", value: offer, color: "#5c8a66", ink: "#3f6b4f" },
+    { id: "pend", col: 4, label: "Pending decision", value: offer, color: "#7fa98a", ink: "#47755a" },
   ];
 
   const links = [
@@ -311,11 +315,8 @@ export function buildCalendar(apps, weeks = CALENDAR_WEEKS) {
       iso,
       n: raw,
       future,
-      background: future ? "oklch(0.20 0.018 300)" : CAL_SHADES[n],
-      glow:
-        n >= 2
-          ? "0 0 10px oklch(0.62 0.20 300 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.12)"
-          : "inset 0 1px 0 oklch(1 0 0 / 0.05)",
+      background: future ? "#f4f2ed" : CAL_SHADES[n],
+      ring: "inset 0 0 0 1px rgba(45, 58, 49, 0.05)",
       tip: `${MONTHS[day.getMonth()]} ${day.getDate()} · ${
         raw === 0 ? "no applications" : `${raw} application${raw === 1 ? "" : "s"}`
       }`,
@@ -373,28 +374,28 @@ export function headlineStats(apps) {
       label: "Applications",
       value: total,
       note: "all time",
-      color: "oklch(0.94 0.01 300)",
+      color: "var(--jt-ink)",
     },
     {
       key: "live",
       label: "Still live",
       value: counts.Applied + counts.Interviewing + counts.Offer,
       note: `${counts.Interviewing} interviewing`,
-      color: "oklch(0.84 0.11 300)",
+      color: "var(--jt-ink-sage)",
     },
     {
       key: "reply-rate",
       label: "Reply rate",
       value: `${replyRate}%`,
       note: "heard back at least once",
-      color: "oklch(0.84 0.12 88)",
+      color: "var(--jt-ink-ochre)",
     },
     {
       key: "median-reply",
       label: "Median reply",
       value: medianReply === null ? "—" : `${medianReply} day${medianReply === 1 ? "" : "s"}`,
       note: "send to first response",
-      color: "oklch(0.82 0.12 150)",
+      color: "var(--jt-ink-moss)",
     },
   ];
 }

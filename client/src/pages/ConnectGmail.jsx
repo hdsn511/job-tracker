@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MailIcon, Wordmark } from "@/components/dashboard/icons";
+import VineDivider from "@/components/VineDivider";
 import { api, clearToken } from "@/lib/api";
 import "@/styles/jobtrak.css";
 
@@ -71,14 +72,18 @@ export default function ConnectGmail() {
       <div className="jt-auth-card is-wide">
         <Wordmark />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="jt-auth-title">Connect your inbox</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="jt-auth-title">
+            Connect your <em>inbox</em>
+          </div>
           <div className="jt-auth-sub">
             jobtrak reads only the job-application mail in your Gmail and turns it into a pipeline —
             confirmations, assessments, interview invites and rejections, dated and grouped by
             company.
           </div>
         </div>
+
+        <VineDivider />
 
         <div className="jt-steps">
           <div className="jt-step">
@@ -106,7 +111,6 @@ export default function ConnectGmail() {
             className="jt-btn jt-btn-primary"
             onClick={handleConnect}
             disabled={!status || redirecting}
-            style={{ padding: 11, fontSize: 13.5, borderRadius: 11 }}
           >
             <MailIcon />
             {redirecting ? "Opening Google…" : "Connect Gmail"}
@@ -116,7 +120,6 @@ export default function ConnectGmail() {
             type="button"
             className="jt-btn jt-btn-ghost"
             onClick={() => navigate("/dashboard", { replace: true })}
-            style={{ padding: 11, borderRadius: 11 }}
           >
             Skip &mdash; I&apos;ll add applications myself
           </button>

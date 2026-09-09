@@ -1,70 +1,105 @@
 @import "tw-animate-css";
-@import "@fontsource-variable/figtree";
+
+/* Playfair Display for display type (upright + italic, for the emphasis
+   the theme leans on), Source Sans 3 for everything else. Self-hosted
+   rather than a Google Fonts <link> so the app has no runtime CDN
+   dependency. */
+@import "@fontsource-variable/playfair-display";
+@import "@fontsource-variable/playfair-display/wght-italic.css";
+@import "@fontsource-variable/source-sans-3";
 
 @import "tailwindcss";
 
 /*
- * Design tokens from the "Job Tracker — Frontend Overhaul" handoff
- * (direction 2a). Everything is authored in oklch on a single purple ramp;
- * every raised surface is a ~168-180deg gradient plus an inset top
- * highlight, which is what gives the UI its glossy read.
+ * Design tokens — "warm organic" theme.
+ *
+ * The palette is warm and earthy and deliberately low-contrast at the
+ * *surface* level (stone borders, diffused shadows); text contrast is not
+ * part of that softness, so every ink below is picked to clear 4.5:1 on
+ * Alabaster. Anything sage-or-lighter is a graphic value only — bars,
+ * fills, borders — never a text color.
  */
 :root {
-  /* purple ramp */
-  --jt-shell-base: oklch(0.145 0.028 300);
-  --jt-shell-top: oklch(0.20 0.045 300);
-  --jt-inset: oklch(0.22 0.04 300);
-  --jt-panel: oklch(0.24 0.055 300);
-  --jt-border: oklch(0.30 0.045 300);
-  --jt-border-strong: oklch(0.34 0.05 300);
-  --jt-active: oklch(0.44 0.16 300);
-  --jt-primary: oklch(0.62 0.21 300);
-  --jt-selection: oklch(0.66 0.20 300);
-  --jt-accent-text: oklch(0.82 0.13 300);
+  /* core palette */
+  --jt-alabaster: #f9f8f4; /* page ground — never pure white */
+  --jt-forest: #2d3a31; /* primary ink */
+  --jt-sage: #8c9a84; /* graphic primary */
+  --jt-clay: #dccfc2; /* secondary surface */
+  --jt-stone: #e6e2da; /* borders */
+  --jt-terracotta: #c27b66; /* hover / CTA pop */
 
-  /* neutral ink */
-  --jt-ink: oklch(0.97 0.01 300);
-  --jt-ink-1: oklch(0.93 0.015 300);
-  --jt-ink-2: oklch(0.80 0.03 300);
-  --jt-ink-3: oklch(0.74 0.04 300);
-  --jt-ink-4: oklch(0.70 0.035 300);
-  --jt-label: oklch(0.72 0.06 300);
+  /* surfaces */
+  --jt-surface: #ffffff;
+  --jt-surface-alt: #f2f0eb;
+  --jt-surface-sunk: #efece5;
 
-  /* semantic */
-  --jt-amber: oklch(0.86 0.14 88);
-  --jt-green: oklch(0.84 0.15 150);
-  --jt-red: oklch(0.78 0.11 25);
+  /* ink ramp — all >= 4.5:1 on alabaster */
+  --jt-ink: #2d3a31; /* 11.2:1 */
+  --jt-ink-2: #45524a; /* 8.0:1  */
+  --jt-ink-3: #5f6e62; /* 5.1:1  */
+  --jt-ink-4: #63725e; /* 4.8:1  */
+  --jt-label: #64735f;
 
-  /* shadows */
-  --jt-gloss: inset 0 1px 0 oklch(1 0 0 / 0.08);
-  --jt-elevation: 0 40px 80px -40px oklch(0.05 0.04 300 / 0.9);
-  --jt-lift: 0 10px 20px -10px oklch(0.45 0.22 300 / 0.9);
+  /* accent inks — text-safe versions of the graphic palette */
+  --jt-ink-sage: #55694b;
+  --jt-ink-moss: #3f6b4f;
+  --jt-ink-ochre: #8a6224;
+  --jt-ink-terracotta: #9e5540;
 
-  /* shadcn/tailwind theme, remapped onto the same ramp so any leftover
-     ui/* primitives stay visually consistent with the redesign */
-  --background: var(--jt-shell-base);
-  --foreground: var(--jt-ink);
-  --card: var(--jt-panel);
-  --card-foreground: var(--jt-ink);
-  --popover: var(--jt-panel);
-  --popover-foreground: var(--jt-ink);
-  --primary: var(--jt-primary);
-  --primary-foreground: oklch(0.99 0.01 300);
-  --secondary: var(--jt-inset);
-  --secondary-foreground: var(--jt-ink);
-  --muted: var(--jt-inset);
+  /* semantic graphic values */
+  --jt-moss: #5c8a66;
+  --jt-ochre: #c9a25c;
+
+  /* borders */
+  --jt-border: #e6e2da;
+  --jt-border-strong: #dcd6cb;
+  --jt-border-sage: #c3ccb8;
+
+  /* shadows — soft and diffused, never a hard drop */
+  --jt-shadow: 0 4px 6px -1px rgba(45, 58, 49, 0.05);
+  --jt-shadow-md: 0 10px 15px -3px rgba(45, 58, 49, 0.05);
+  --jt-shadow-lg: 0 20px 40px -10px rgba(45, 58, 49, 0.05);
+  --jt-shadow-xl: 0 25px 50px -12px rgba(45, 58, 49, 0.15);
+
+  /* radii */
+  --jt-radius-card: 24px;
+  --jt-radius-panel: 20px;
+  --jt-radius-sm: 14px;
+  --jt-radius-pill: 999px;
+  --jt-radius-arch: 40px;
+
+  /* motion — nothing snaps */
+  --jt-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --jt-duration-fast: 300ms; /* color / background */
+  --jt-duration-mid: 500ms; /* lifts, transforms */
+  --jt-duration-slow: 700ms; /* images, large scale */
+
+  /* shadcn/tailwind theme, remapped onto the same palette so any leftover
+     ui/* primitives stay visually consistent with the theme */
+  --background: var(--jt-alabaster);
+  --foreground: var(--jt-forest);
+  --card: var(--jt-surface);
+  --card-foreground: var(--jt-forest);
+  --popover: var(--jt-surface);
+  --popover-foreground: var(--jt-forest);
+  --primary: var(--jt-forest);
+  --primary-foreground: #ffffff;
+  --secondary: var(--jt-clay);
+  --secondary-foreground: var(--jt-forest);
+  --muted: var(--jt-surface-alt);
   --muted-foreground: var(--jt-ink-3);
-  --accent: var(--jt-active);
-  --accent-foreground: oklch(0.99 0.01 300);
-  --destructive: oklch(0.62 0.18 25);
+  --accent: var(--jt-sage);
+  --accent-foreground: #ffffff;
+  --destructive: var(--jt-ink-terracotta);
   --border: var(--jt-border);
-  --input: oklch(0.14 0.025 300);
-  --ring: var(--jt-primary);
-  --radius: 0.625rem;
+  --input: var(--jt-surface-alt);
+  --ring: var(--jt-sage);
+  --radius: 1rem;
 }
 
 @theme inline {
-  --font-sans: "Figtree Variable", "Figtree", Helvetica, sans-serif;
+  --font-sans: "Source Sans 3 Variable", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display Variable", "Playfair Display", ui-serif, Georgia, serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -83,11 +118,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --radius-3xl: 24px;
+  --radius-arch: 40px;
+  --shadow-soft: var(--jt-shadow);
+  --shadow-soft-md: var(--jt-shadow-md);
+  --shadow-soft-lg: var(--jt-shadow-lg);
+  --shadow-soft-xl: var(--jt-shadow-xl);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
     box-sizing: border-box;
   }
   html,
@@ -103,5 +144,13 @@
     padding: 0;
     min-height: 100vh;
     font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* No blue rings anywhere: focus reads as a soft sage halo instead. */
+  :focus-visible {
+    outline: 2px solid var(--jt-sage);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }

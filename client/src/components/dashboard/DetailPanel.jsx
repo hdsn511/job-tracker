@@ -7,7 +7,7 @@ export default function DetailPanel({ app, onStageChange, onEdit, onArchive, bus
       <aside className="jt-detail">
         <div className="jt-detail-section">
           <div className="jt-label">Selected</div>
-          <div className="jt-auth-sub">
+          <div className="jt-hint">
             Pick an application from the list to see its parsed timeline.
           </div>
         </div>
@@ -19,7 +19,7 @@ export default function DetailPanel({ app, onStageChange, onEdit, onArchive, bus
 
   return (
     <aside className="jt-detail">
-      <div className="jt-detail-section" style={{ gap: 7 }}>
+      <div className="jt-detail-section" style={{ gap: 8 }}>
         <div className="jt-label">Selected</div>
         <div className="jt-detail-company">{app.company}</div>
         <div className="jt-detail-role">{app.title}</div>
@@ -45,7 +45,7 @@ export default function DetailPanel({ app, onStageChange, onEdit, onArchive, bus
         </div>
       </div>
 
-      <div className="jt-detail-section" style={{ gap: 11 }}>
+      <div className="jt-detail-section" style={{ gap: 14 }}>
         <div className="jt-label">Timeline &middot; parsed from inbox</div>
         {app.events.length ? (
           <div className="jt-timeline">
@@ -57,7 +57,7 @@ export default function DetailPanel({ app, onStageChange, onEdit, onArchive, bus
             ))}
           </div>
         ) : (
-          <div className="jt-auth-sub">Nothing parsed for this application yet.</div>
+          <div className="jt-hint">Nothing parsed for this application yet.</div>
         )}
       </div>
 
