@@ -18,5 +18,8 @@ create table if not exists jobs (
   status text not null default 'Applied',
   application_date date,
   notes text,
+  archived boolean not null default false,
   created_at timestamptz default now()
 );
+
+create index if not exists jobs_user_active_idx on jobs (user_id) where archived = false;

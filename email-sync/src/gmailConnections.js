@@ -32,8 +32,30 @@ async function listConnections() {
   }));
 }
 
+/** One connected account, token decrypted — what the app's Resync button syncs. */
+async function getConnection(userId) {
+  const rows = await sql`
+    select user_id, gmail_address, refresh_token_encrypted, last_synced_at
+    from gmail_connections
+    where user_id = ${userId}
+  `;
+  if (!rows[0]) return null;
+  return {
+    userId: rows[0].user_id,
+    gmailAddress: rows[0].gmail_address,
+    refreshToken: decrypt(rows[0].refresh_token_encrypted),
+    lastSyncedAt: rows[0].last_synced_at === null ? null : Number(rows[0].last_synced_at),
+  };
+}
+
 async function setLastSyncedAt(userId, epochSeconds) {
   await sql`update gmail_connections set last_synced_at = ${epochSeconds} where user_id = ${userId}`;
 }
 
-module.exports = { getUserIdByEmail, saveGmailConnection, listConnections, setLastSyncedAt };
+module.exports = {
+  getUserIdByEmail,
+  saveGmailConnection,
+  listConnections,
+  getConnection,
+  setLastSyncedAt,
+};

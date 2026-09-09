@@ -1,6 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/authMiddleware');
 const gmailController = require('../controllers/gmailController');
+const syncController = require('../controllers/syncController');
 const gmailRouter = express.Router();
 
 gmailRouter.get('/connect', auth, gmailController.startGmailConnect);
@@ -10,5 +11,7 @@ gmailRouter.get('/connect', auth, gmailController.startGmailConnect);
 gmailRouter.get('/callback', gmailController.handleGmailCallback);
 
 gmailRouter.get('/status', auth, gmailController.getGmailStatus);
+
+gmailRouter.post('/sync', auth, syncController.runSync);
 
 module.exports = gmailRouter;

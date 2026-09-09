@@ -1,280 +1,313 @@
-import AddJobModal from "@/components/AddJobModal";
-import NavBar from "@/components/NavBar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Mail, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ApplicationModal from "@/components/ApplicationModal";
+import ActivityRow from "@/components/dashboard/ActivityRow";
+import ApplicationList from "@/components/dashboard/ApplicationList";
+import DetailPanel from "@/components/dashboard/DetailPanel";
+import FunnelPanel from "@/components/dashboard/FunnelPanel";
+import Rail from "@/components/dashboard/Rail";
+import { api, clearToken } from "@/lib/api";
+import {
+  parsedEventCount,
+  relativeTime,
+  sortByDateDesc,
+  stageCounts,
+  toApplication,
+  toISODate,
+} from "@/lib/applications";
+import "@/styles/jobtrak.css";
 
+/** Manual edits join the same parsed timeline the sync writer appends to. */
+function noteLine(text, date = toISODate(new Date())) {
+  return `[${date}] ${text}`;
+}
 
 export default function Dashboard() {
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [jobs, setJobs] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(null); // job id
-  const [gmailStatus, setGmailStatus] = useState(null); // { connected, gmailAddress }
-  const [gmailMessage, setGmailMessage] = useState(null); // "connected" | "error"
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-  const fetchJobs = () => {
-    const url =
-      activeFilter === "All"
-        ? `${API_URL}/jobs`
-        : `${API_URL}/jobs?status=${activeFilter}`;
-    fetch(url, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    })
-      .then((response) => response.json())
-      .then((data) => setJobs(data));
-  };
+  const [apps, setApps] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("All");
+  const [selectedId, setSelectedId] = useState(null);
+  const [gmail, setGmail] = useState({ connected: false, lastSyncedAt: null });
+  const [syncing, setSyncing] = useState(false);
+  const [notice, setNotice] = useState(null); // { tone, text }
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    fetchJobs();
-  }, [activeFilter]);
+  const handleFailure = useCallback(
+    (error) => {
+      if (error?.unauthorized) {
+        clearToken();
+        navigate("/", { replace: true });
+        return;
+      }
+      setNotice({ tone: "bad", text: error?.message || "Something went wrong." });
+    },
+    [navigate],
+  );
 
-  useEffect(() => {
-    if (!localStorage.getItem("token")) {
-      navigate("/");
-    }
+  const loadJobs = useCallback(async () => {
+    const rows = await api("/jobs");
+    setApps(sortByDateDesc(rows.map(toApplication)));
   }, []);
 
-  const fetchGmailStatus = () => {
-    fetch(`${API_URL}/auth/gmail/status`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-      .then((response) => response.json())
-      .then((data) => setGmailStatus(data));
-  };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const gmail = params.get("gmail");
-    if (gmail === "connected" || gmail === "error") {
-      setGmailMessage(gmail);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    fetchGmailStatus();
+  const loadGmail = useCallback(async () => {
+    setGmail(await api("/auth/gmail/status"));
   }, []);
 
-  const handleConnectGmail = () => {
-    fetch(`${API_URL}/auth/gmail/connect`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        window.location.href = data.url;
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await Promise.all([loadJobs(), loadGmail()]);
+      } catch (error) {
+        if (!cancelled) handleFailure(error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadJobs, loadGmail, handleFailure]);
+
+  // The Gmail OAuth callback bounces the browser back here with a result in
+  // the query string; show it once, then clean the URL.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("gmail");
+    if (result !== "connected" && result !== "error") return;
+    setNotice(
+      result === "connected"
+        ? { tone: "good", text: "Gmail connected. Resync to pull in your applications." }
+        : { tone: "bad", text: "Couldn't connect Gmail. Please try again." },
+    );
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  const counts = useMemo(() => stageCounts(apps), [apps]);
+  const visible = useMemo(
+    () => (filter === "All" ? apps : apps.filter((app) => app.status === filter)),
+    [apps, filter],
+  );
+
+  // Keep a valid selection as the filter narrows or rows come and go.
+  useEffect(() => {
+    if (visible.some((app) => app.id === selectedId)) return;
+    setSelectedId(visible.length ? visible[0].id : null);
+  }, [visible, selectedId]);
+
+  const selected = apps.find((app) => app.id === selectedId) || null;
+
+  /** Optimistic write: patch locally, then reconcile with the server row. */
+  const patchApp = async (id, body) => {
+    const previous = apps;
+    setBusy(true);
+    setApps((current) =>
+      current.map((app) => (app.id === id ? toApplication({ ...toRow(app), ...body }) : app)),
+    );
+    try {
+      const row = await api(`/jobs/${id}`, { method: "PUT", body });
+      setApps((current) =>
+        sortByDateDesc(current.map((app) => (app.id === id ? toApplication(row) : app))),
+      );
+    } catch (error) {
+      setApps(previous);
+      handleFailure(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStageChange = (id, status) => patchApp(id, { status });
+
+  const handleArchive = async (app) => {
+    const previous = apps;
+    setBusy(true);
+    setApps((current) => current.filter((item) => item.id !== app.id));
+    try {
+      await api(`/jobs/${app.id}`, { method: "PUT", body: { archived: true } });
+      setNotice({ tone: "good", text: `Archived ${app.company}.` });
+    } catch (error) {
+      setApps(previous);
+      handleFailure(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = async (form) => {
+    setSaving(true);
+    try {
+      if (editing) {
+        const notes = form.notes.trim()
+          ? [editing.notes, noteLine(form.notes.trim())].filter(Boolean).join("\n")
+          : editing.notes;
+        const row = await api(`/jobs/${editing.id}`, {
+          method: "PUT",
+          body: {
+            company_name: form.company,
+            job_title: form.title || "Unknown title",
+            status: form.status,
+            application_date: form.date,
+            notes,
+          },
+        });
+        setApps((current) =>
+          sortByDateDesc(current.map((app) => (app.id === editing.id ? toApplication(row) : app))),
+        );
+      } else {
+        const notes = [noteLine("Added manually", form.date), form.notes.trim()]
+          .filter(Boolean)
+          .join("\n");
+        const row = await api("/jobs", {
+          method: "POST",
+          body: {
+            company_name: form.company,
+            job_title: form.title || "Unknown title",
+            status: form.status,
+            application_date: form.date,
+            notes,
+          },
+        });
+        const created = toApplication(row);
+        setApps((current) => sortByDateDesc([created, ...current]));
+        setFilter("All");
+        setSelectedId(created.id);
+      }
+      setModalOpen(false);
+      setEditing(null);
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResync = async () => {
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const { summary } = await api("/auth/gmail/sync", { method: "POST" });
+      await Promise.all([loadJobs(), loadGmail()]);
+      setNotice({
+        tone: "good",
+        text: `Sync done — ${summary.inserted} new, ${summary.updated} updated.`,
       });
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      setSyncing(false);
+    }
   };
 
-  const handleDelete = (id) => {
-    fetch(`${API_URL}/jobs/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    }).then(() => fetchJobs());
-  };
+  const handleConnectGmail = () => navigate("/connect");
 
-  const handleUpdate = (id, field, value) => {
-    fetch(`${API_URL}/jobs/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ [field]: value }),
-    }).then(() => fetchJobs());
+  const handleLogout = () => {
+    clearToken();
+    navigate("/", { replace: true });
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <NavBar />
-      <main className="flex flex-col p-6 gap-4">
-        <h2 className="text-2xl font-semibold text-foreground">My Applications</h2>
-
-        {gmailMessage === "connected" && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-400">
-            Gmail connected. New application emails will be picked up automatically.
-          </div>
-        )}
-        {gmailMessage === "error" && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            Couldn&apos;t connect Gmail. Please try again.
-          </div>
-        )}
-
-        <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            {gmailStatus?.connected ? (
-              <span className="text-sm">
-                Gmail connected <Badge variant="secondary">{gmailStatus.gmailAddress}</Badge>
-              </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">
-                Connect Gmail to auto-track applications from your inbox.
-              </span>
-            )}
-          </div>
-          {!gmailStatus?.connected && (
-            <Button variant="outline" size="sm" onClick={handleConnectGmail}>
-              Connect Gmail
-            </Button>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between">
-          
-          <div className="flex gap-3">
-            {/* filter buttons on the left */}
-            <Button
-              variant={activeFilter === "All" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("All")}
-            >
-              All
-            </Button>
-            <Button
-              variant={activeFilter === "Applied" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("Applied")}
-            >
-              Applied
-            </Button>
-            <Button
-              variant={activeFilter === "Interviewing" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("Interviewing")}
-            >
-              Interviewing
-            </Button>
-            <Button
-              variant={activeFilter === "Offer" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("Offer")}
-            >
-              Offer
-            </Button>
-            <Button
-              variant={activeFilter === "Rejected" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("Rejected")}
-            >
-              Rejected
-            </Button>
-          </div>
-          <Button onClick={() => setIsModalOpen(true)}>Add Job</Button>
-        </div>
-
-        {/* job cards */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Company</TableHead>
-              <TableHead>Position</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date Applied</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead>Delete</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {jobs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-4">
-                  No jobs found. Start by adding a new job!
-                </TableCell>
-              </TableRow>
-            ) : (
-              jobs.map((job) => (
-                <TableRow key={job.id}>
-                  <TableCell>{job.company_name}</TableCell>
-                  <TableCell>{job.job_title}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={job.status}
-                      onValueChange={(value) =>
-                        handleUpdate(job.id, "status", value)
-                      }
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Applied">Applied</SelectItem>
-                        <SelectItem value="Interviewing">
-                          Interviewing
-                        </SelectItem>
-                        <SelectItem value="Offer">Offer</SelectItem>
-                        <SelectItem value="Rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>{job.application_date}</TableCell>
-                  <TableCell>
-                    {editingNotes === job.id ? (
-                      <Input
-                        defaultValue={job.notes}
-                        autoFocus
-                        onBlur={(e) => {
-                          handleUpdate(job.id, "notes", e.target.value);
-                          setEditingNotes(null);
-                        }}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span>{job.notes}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditingNotes(job.id)}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(job.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        </div>
-        <AddJobModal
-          open={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onJobAdded={fetchJobs}
+    <div className="jt-page">
+      <div className="jt-shell">
+        <Rail
+          counts={counts}
+          filter={filter}
+          onFilterChange={setFilter}
+          gmailConnected={gmail.connected}
+          syncLabel={relativeTime(gmail.lastSyncedAt)}
+          parsedCount={parsedEventCount(apps)}
+          syncing={syncing}
+          onResync={handleResync}
+          onConnectGmail={handleConnectGmail}
+          onLogout={handleLogout}
+          onAddApplication={() => {
+            setEditing(null);
+            setModalOpen(true);
+          }}
         />
-      </main>
+
+        <main className="jt-main">
+          {notice ? (
+            <button
+              type="button"
+              className={`jt-banner jt-notice${notice.tone === "good" ? " is-good" : ""}`}
+              onClick={() => setNotice(null)}
+              title="Dismiss"
+            >
+              {notice.text}
+            </button>
+          ) : null}
+
+          <div className={`jt-funnel-section${apps.length ? "" : " is-empty"}`}>
+            <FunnelPanel apps={apps} />
+          </div>
+
+          <ActivityRow apps={apps} />
+
+          <div className="jt-body">
+            <ApplicationList
+              apps={visible}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              emptyState={
+                loading
+                  ? { title: "Loading applications…", note: "" }
+                  : apps.length
+                    ? {
+                        title: `No ${filter.toLowerCase()} applications`,
+                        note: "Pick another stage in the rail to see the rest of the pipeline.",
+                      }
+                    : {
+                        title: "Nothing tracked yet",
+                        note: gmail.connected
+                          ? "Resync your inbox to pull in application emails, or add one by hand."
+                          : "Connect Gmail to pull applications out of your inbox, or add one by hand."
+                      }
+              }
+            />
+            <DetailPanel
+              app={selected}
+              busy={busy}
+              onStageChange={handleStageChange}
+              onEdit={(app) => {
+                setEditing(app);
+                setModalOpen(true);
+              }}
+              onArchive={handleArchive}
+            />
+          </div>
+        </main>
+      </div>
+
+      <ApplicationModal
+        open={modalOpen}
+        application={editing}
+        saving={saving}
+        onClose={() => {
+          setModalOpen(false);
+          setEditing(null);
+        }}
+        onSave={handleSave}
+      />
     </div>
   );
+}
+
+/** Inverse of `toApplication`, for optimistic local patches. */
+function toRow(app) {
+  return {
+    id: app.id,
+    company_name: app.company,
+    job_title: app.title,
+    status: app.status,
+    application_date: app.date,
+    notes: app.notes,
+    archived: app.archived,
+  };
 }

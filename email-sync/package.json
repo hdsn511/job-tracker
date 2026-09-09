@@ -4,7 +4,7 @@
   "description": "Pulls job-application emails from Gmail, classifies them with free rule-based + LLM-fallback logic, and upserts them into the job-tracker jobs table.",
   "main": "src/run.js",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "start": "node src/run.js",
     "get-token": "node src/getRefreshToken.js"
   },

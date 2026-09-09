@@ -1,92 +1,142 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Wordmark } from "@/components/dashboard/icons";
+import { api, setToken } from "@/lib/api";
+import "@/styles/jobtrak.css";
 
 export default function Login() {
+  const [mode, setMode] = useState("login"); // "login" | "register"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegistered, setIsRegistered] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-  const login = async (email, password) => {
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await response.json();
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-      navigate("/dashboard");
-    } else {
-      setError("Invalid email or password. Please try again.");
+  const isRegister = mode === "register";
+
+  /**
+   * Straight to the dashboard for anyone whose inbox is already connected;
+   * everyone else gets the connect step first, since an empty tracker with
+   * no inbox hooked up has nothing to show.
+   */
+  const continueAfterAuth = async () => {
+    try {
+      const status = await api("/auth/gmail/status");
+      navigate(status.connected ? "/dashboard" : "/connect", { replace: true });
+    } catch {
+      navigate("/connect", { replace: true });
     }
   };
 
-  const handleSubmit = async (e) => {
-    if (isRegistered) {
-      login(email, password);
-    } else {
-      fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.error) {
-            setError(
-              "An account with this email already exists. Please Login or try again.",
-            );
-          } else {
-            login(email, password);
-          }
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+
+    if (!email.trim() || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+    if (isRegister && password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (isRegister) {
+        await api("/auth/register", {
+          method: "POST",
+          auth: false,
+          body: { email: email.trim(), password },
         });
+      }
+
+      const { token } = await api("/auth/login", {
+        method: "POST",
+        auth: false,
+        body: { email: email.trim(), password },
+      });
+      setToken(token);
+      await continueAfterAuth();
+    } catch (err) {
+      if (err.status === 409) {
+        setError("An account with this email already exists. Log in instead.");
+      } else if (err.status === 401) {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
-          <span className="text-primary">Job</span>Tracker
-        </h1>
-      </div>
+    <div className="jt-auth-page">
+      <form className="jt-auth-card" onSubmit={handleSubmit}>
+        <Wordmark />
 
-      <div className="bg-card border border-border rounded-xl p-8 w-full max-w-sm flex flex-col gap-4 shadow-lg">
-        <h1 className="text-2xl font-bold text-center text-foreground">
-          {isRegistered ? "Welcome Back" : "Create Account"}
-        </h1>
-        <Input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-        <Button onClick={handleSubmit}>
-          {isRegistered ? "Login" : "Register"}
-        </Button>
-        <p
-          onClick={() => {
-            setIsRegistered(!isRegistered);
-            setError("");
-          }}
-          className="text-sm text-center text-muted-foreground cursor-pointer hover:underline"
-        >
-          {isRegistered
-            ? "Don't have an account? Register"
-            : "Already have an account? Login"}
-        </p>
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="jt-auth-title">{isRegister ? "Create your account" : "Welcome back"}</div>
+          <div className="jt-auth-sub">
+            {isRegister
+              ? "Track every application in one pipeline, built from your inbox."
+              : "Pick up where your pipeline left off."}
+          </div>
+        </div>
+
+        <div className="jt-auth-form">
+          <div className="jt-field">
+            <label htmlFor="jt-email">Email</label>
+            <input
+              id="jt-email"
+              className="jt-input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div className="jt-field">
+            <label htmlFor="jt-password">Password</label>
+            <input
+              id="jt-password"
+              className="jt-input"
+              type="password"
+              autoComplete={isRegister ? "new-password" : "current-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={isRegister ? "At least 8 characters" : "••••••••"}
+            />
+          </div>
+
+          {error ? <div className="jt-notice">{error}</div> : null}
+
+          <button
+            type="submit"
+            className="jt-btn jt-btn-primary"
+            disabled={submitting}
+            style={{ padding: 11, fontSize: 13.5, borderRadius: 11 }}
+          >
+            {submitting ? "Just a moment…" : isRegister ? "Create account" : "Log in"}
+          </button>
+        </div>
+
+        <div className="jt-auth-switch">
+          {isRegister ? "Already have an account? " : "Don't have an account? "}
+          <button
+            type="button"
+            onClick={() => {
+              setMode(isRegister ? "login" : "register");
+              setError("");
+            }}
+          >
+            {isRegister ? "Log in" : "Register"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

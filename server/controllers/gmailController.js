@@ -3,7 +3,11 @@ const sql = require('../db');
 const { createOAuthClient, SCOPES } = require('../gmailAuth');
 const { encrypt } = require('../tokenCrypto');
 
-const FRONTEND_URL = process.env.CLIENT_ORIGIN || 'https://job-tracker-frontend-ten-eta.vercel.app';
+// CLIENT_ORIGIN is a comma-separated allow-list for CORS; the OAuth
+// callback can only redirect to one place, so take the first entry.
+const FRONTEND_URL =
+  (process.env.CLIENT_ORIGIN || '').split(',')[0].trim() ||
+  'https://job-tracker-frontend-ten-eta.vercel.app';
 
 // Starts the OAuth flow. The browser will be redirected away from our SPA
 // to Google and back, so identity can't ride along in an Authorization
@@ -79,9 +83,16 @@ const handleGmailCallback = async (req, res) => {
 const getGmailStatus = async (req, res) => {
   try {
     const [row] = await sql`
-      select gmail_address, connected_at from gmail_connections where user_id = ${req.user.id}
+      select gmail_address, connected_at, last_synced_at
+      from gmail_connections where user_id = ${req.user.id}
     `;
-    res.json({ connected: Boolean(row), gmailAddress: row ? row.gmail_address : null });
+    res.json({
+      connected: Boolean(row),
+      gmailAddress: row ? row.gmail_address : null,
+      connectedAt: row ? row.connected_at : null,
+      // bigint epoch seconds — the driver hands it back as a string.
+      lastSyncedAt: row && row.last_synced_at !== null ? Number(row.last_synced_at) : null,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }

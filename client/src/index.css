@@ -1,32 +1,70 @@
 @import "tw-animate-css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/figtree";
 
 @import "tailwindcss";
 
+/*
+ * Design tokens from the "Job Tracker — Frontend Overhaul" handoff
+ * (direction 2a). Everything is authored in oklch on a single purple ramp;
+ * every raised surface is a ~168-180deg gradient plus an inset top
+ * highlight, which is what gives the UI its glossy read.
+ */
 :root {
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.16 0 0);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.16 0 0);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(77.962% 0.16039 63.956);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.2 0 0);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(77.962% 0.16039 63.956);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.25 0 0);
-  --input: oklch(0.2 0 0);
-  --ring: oklch(77.962% 0.16039 63.956);
+  /* purple ramp */
+  --jt-shell-base: oklch(0.145 0.028 300);
+  --jt-shell-top: oklch(0.20 0.045 300);
+  --jt-inset: oklch(0.22 0.04 300);
+  --jt-panel: oklch(0.24 0.055 300);
+  --jt-border: oklch(0.30 0.045 300);
+  --jt-border-strong: oklch(0.34 0.05 300);
+  --jt-active: oklch(0.44 0.16 300);
+  --jt-primary: oklch(0.62 0.21 300);
+  --jt-selection: oklch(0.66 0.20 300);
+  --jt-accent-text: oklch(0.82 0.13 300);
+
+  /* neutral ink */
+  --jt-ink: oklch(0.97 0.01 300);
+  --jt-ink-1: oklch(0.93 0.015 300);
+  --jt-ink-2: oklch(0.80 0.03 300);
+  --jt-ink-3: oklch(0.74 0.04 300);
+  --jt-ink-4: oklch(0.70 0.035 300);
+  --jt-label: oklch(0.72 0.06 300);
+
+  /* semantic */
+  --jt-amber: oklch(0.86 0.14 88);
+  --jt-green: oklch(0.84 0.15 150);
+  --jt-red: oklch(0.78 0.11 25);
+
+  /* shadows */
+  --jt-gloss: inset 0 1px 0 oklch(1 0 0 / 0.08);
+  --jt-elevation: 0 40px 80px -40px oklch(0.05 0.04 300 / 0.9);
+  --jt-lift: 0 10px 20px -10px oklch(0.45 0.22 300 / 0.9);
+
+  /* shadcn/tailwind theme, remapped onto the same ramp so any leftover
+     ui/* primitives stay visually consistent with the redesign */
+  --background: var(--jt-shell-base);
+  --foreground: var(--jt-ink);
+  --card: var(--jt-panel);
+  --card-foreground: var(--jt-ink);
+  --popover: var(--jt-panel);
+  --popover-foreground: var(--jt-ink);
+  --primary: var(--jt-primary);
+  --primary-foreground: oklch(0.99 0.01 300);
+  --secondary: var(--jt-inset);
+  --secondary-foreground: var(--jt-ink);
+  --muted: var(--jt-inset);
+  --muted-foreground: var(--jt-ink-3);
+  --accent: var(--jt-active);
+  --accent-foreground: oklch(0.99 0.01 300);
+  --destructive: oklch(0.62 0.18 25);
+  --border: var(--jt-border);
+  --input: oklch(0.14 0.025 300);
+  --ring: var(--jt-primary);
   --radius: 0.625rem;
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  --font-sans: "Figtree Variable", "Figtree", Helvetica, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -52,15 +90,18 @@
     @apply border-border outline-ring/50;
     box-sizing: border-box;
   }
-  html, body, #root {
+  html,
+  body,
+  #root {
     height: 100%;
     margin: 0;
     padding: 0;
   }
   body {
-  @apply bg-background text-foreground font-sans;
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-}
+    @apply bg-background text-foreground font-sans;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    font-variant-numeric: tabular-nums;
+  }
 }
