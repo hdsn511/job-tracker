@@ -203,11 +203,13 @@ export function sankeyModel(apps) {
   };
 }
 
-export const SANKEY_BOX = { width: 944, height: 372, marginLeft: 116, marginTop: 34 };
+/* Shorter than it is wide by design: the funnel is a header band above the
+   application list, not the main event, so it gets a strip of height. */
+export const SANKEY_BOX = { width: 944, height: 216, marginLeft: 116, marginTop: 22 };
 
 /**
  * Lays the funnel out: one 10px bar per node, columns evenly spaced across
- * a 690x292 drawing area, ribbons as cubic Beziers whose control points sit
+ * a 690x172 drawing area, ribbons as cubic Beziers whose control points sit
  * at the horizontal midpoint. Labels are positioned in CSS pixels on top of
  * the SVG (HTML type renders crisper than SVG <text>).
  */
@@ -215,9 +217,9 @@ export function buildSankey(apps) {
   const model = sankeyModel(apps);
   const { width: BOXW, marginLeft: ML, marginTop: MT } = SANKEY_BOX;
   const W = 690;
-  const H = 292;
+  const H = 172;
   const NW = 10;
-  const GAP = 22;
+  const GAP = 14;
   const COLS = 5;
 
   const k = (H - GAP * 2) / Math.max(model.total, 1);
@@ -240,22 +242,28 @@ export function buildSankey(apps) {
       // Horizontal offsets stay in px (the shell is a fixed 1240 wide), but
       // the box can lose height on a short viewport — so anchor labels to a
       // percentage of the box and keep the px nudge outside the scaling.
+      //
+      // Labels are one line (name and value side by side) and carry a halo
+      // in CSS: at this height there is no room for a two-line stack, and
+      // the middle columns sit directly over the ribbons. HALO is the 7px
+      // of horizontal padding, backed out so the text still lines up with
+      // the node bar it belongs to.
       const pct = (value) => `${(value / SANKEY_BOX.height) * 100}%`;
+      const HALO = 7;
       const position = isFirst
         ? {
-            right: BOXW - (ML + x - 14),
-            top: `calc(${pct(MT + y + h / 2)} - 20px)`,
-            alignItems: "flex-end",
+            right: BOXW - (ML + x - 14) + HALO,
+            top: `calc(${pct(MT + y + h / 2)} - 13px)`,
           }
         : isLast
           ? {
-              left: ML + x + NW + 14,
-              top: `calc(${pct(MT + y + h / 2)} - 20px)`,
-              alignItems: "flex-start",
+              left: ML + x + NW + 14 - HALO,
+              top: `calc(${pct(MT + y + h / 2)} - 13px)`,
             }
-          : // 36px clears the full two-line stack, so the value doesn't sit
-            // behind the top of the node bar.
-            { left: ML + x, top: `calc(${pct(MT + y)} - 36px)`, alignItems: "flex-start" };
+          : // The label box is ~26px tall (baseline-aligned type at two
+            // sizes, plus the halo padding), so 33px leaves a clear 7px
+            // between the text and the top of the node bar.
+            { left: ML + x - HALO, top: `calc(${pct(MT + y)} - 33px)` };
 
       placed[node.id] = { ...node, x, y, h, outY: y, inY: y, position };
       y += h + GAP;
@@ -285,54 +293,55 @@ export function buildSankey(apps) {
 
 /* -------------------------------------------------------------- calendar */
 
-export const CALENDAR_WEEKS = 10;
+export const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
 
 /**
- * GitHub-style contribution grid: one column per week, row index = weekday,
- * last column is the current week.
+ * One calendar month as a heat grid: seven columns (Sunday first), one cell
+ * per day, `leading` empty cells before the 1st so the weekdays line up.
+ *
+ * A month rather than a rolling quarter — the grid is a compact reference
+ * for "how much have I sent lately", and the rolling version was mostly
+ * empty scroll-back.
  */
-export function buildCalendar(apps, weeks = CALENDAR_WEEKS) {
-  const today = startOfToday();
+export function buildCalendar(apps, reference = startOfToday()) {
+  const year = reference.getFullYear();
+  const month = reference.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leading = new Date(year, month, 1).getDay();
+
   const perDay = {};
   apps.forEach((app) => {
     if (!app.date) return;
     perDay[app.date] = (perDay[app.date] || 0) + 1;
   });
 
-  const start = new Date(today);
-  start.setDate(start.getDate() - today.getDay() - (weeks - 1) * 7);
-
   const cells = [];
-  for (let i = 0; i < weeks * 7; i++) {
-    const day = new Date(start);
-    day.setDate(day.getDate() + i);
-    const iso = toISODate(day);
-    const future = day > today;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const iso = toISODate(date);
+    const future = date > reference;
     const raw = perDay[iso] || 0;
-    const n = Math.min(raw, 4);
 
     cells.push({
       iso,
+      day,
       n: raw,
       future,
-      background: future ? "#f4f2ed" : CAL_SHADES[n],
+      today: iso === toISODate(reference),
+      background: future ? "#f4f2ed" : CAL_SHADES[Math.min(raw, 4)],
       ring: "inset 0 0 0 1px rgba(45, 58, 49, 0.05)",
-      tip: `${MONTHS[day.getMonth()]} ${day.getDate()} · ${
+      tip: `${MONTHS[month]} ${day} · ${
         raw === 0 ? "no applications" : `${raw} application${raw === 1 ? "" : "s"}`
       }`,
     });
   }
 
-  const weekTotals = [];
-  for (let w = 0; w * 7 < cells.length; w++) {
-    weekTotals.push(cells.slice(w * 7, w * 7 + 7).reduce((sum, c) => sum + c.n, 0));
-  }
-
   return {
     cells,
-    weeks,
-    busiestWeek: weekTotals.length ? Math.max(...weekTotals) : 0,
-    activeDays: cells.filter((c) => c.n > 0).length,
+    leading,
+    monthLabel: MONTHS_LONG[month],
+    monthTotal: cells.reduce((sum, cell) => sum + cell.n, 0),
+    activeDays: cells.filter((cell) => cell.n > 0).length,
   };
 }
 

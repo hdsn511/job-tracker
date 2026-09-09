@@ -1,10 +1,9 @@
 import { useMemo } from "react";
-import { CAL_SHADES, buildCalendar, headlineStats } from "@/lib/applications";
+import { CAL_SHADES, WEEKDAY_INITIALS, buildCalendar, headlineStats } from "@/lib/applications";
 
 /**
- * Contribution calendar plus the four headline numbers. The calendar spans
- * 10 weeks — a quarter of a job search reads at a glance; the 24 weeks the
- * design started with was mostly empty grid.
+ * The month heat grid plus the four headline numbers — a reference band
+ * above the application list, so it stays deliberately short.
  */
 export default function ActivityRow({ apps }) {
   const calendar = useMemo(() => buildCalendar(apps), [apps]);
@@ -14,22 +13,7 @@ export default function ActivityRow({ apps }) {
     <div className="jt-activity">
       <div className="jt-calendar">
         <div className="jt-calendar-head">
-          <span className="jt-label">Application activity</span>
-          <span className="jt-calendar-weeks">{calendar.weeks} weeks</span>
-        </div>
-
-        <div className="jt-calendar-grid">
-          {calendar.cells.map((cell) => (
-            <div
-              key={cell.iso}
-              className="jt-calendar-cell"
-              title={cell.tip}
-              style={{ background: cell.background, boxShadow: cell.ring }}
-            />
-          ))}
-        </div>
-
-        <div className="jt-calendar-foot">
+          <span className="jt-label">{calendar.monthLabel}</span>
           <div className="jt-calendar-legend">
             <span>less</span>
             {CAL_SHADES.map((shade) => (
@@ -37,14 +21,36 @@ export default function ActivityRow({ apps }) {
             ))}
             <span>more</span>
           </div>
-          <div className="jt-calendar-summary">
-            <span>
-              busiest week &mdash; <strong>{calendar.busiestWeek}</strong>
-            </span>
-            <span>
-              active days &mdash; <strong>{calendar.activeDays}</strong>
-            </span>
-          </div>
+        </div>
+
+        <div className="jt-calendar-weekdays" aria-hidden="true">
+          {WEEKDAY_INITIALS.map((initial, index) => (
+            <span key={index}>{initial}</span>
+          ))}
+        </div>
+
+        <div className="jt-calendar-grid">
+          {/* Blanks push the 1st under its weekday. */}
+          {Array.from({ length: calendar.leading }, (_, index) => (
+            <span key={`pad-${index}`} className="jt-calendar-pad" />
+          ))}
+          {calendar.cells.map((cell) => (
+            <div
+              key={cell.iso}
+              className={`jt-calendar-cell${cell.today ? " is-today" : ""}`}
+              title={cell.tip}
+              style={{ background: cell.background, boxShadow: cell.ring }}
+            />
+          ))}
+        </div>
+
+        <div className="jt-calendar-foot">
+          <span>
+            <strong>{calendar.monthTotal}</strong> this month
+          </span>
+          <span>
+            <strong>{calendar.activeDays}</strong> active days
+          </span>
         </div>
       </div>
 
