@@ -9,7 +9,7 @@ const {
   extractJobTitle,
   extractJobId,
   classifyEmail,
-} = require('../src/classifier');
+} = require('../sync/classifier');
 
 test('identifyATS: workday subdomain', () => {
   const { ats, domain } = identifyATS('PwC <pwc@myworkday.com>');

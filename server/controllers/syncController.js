@@ -1,18 +1,10 @@
-// Runs the email-sync engine on demand for the logged-in user, so the
-// dashboard's "Resync inbox" button does exactly what the twice-daily
-// GitHub Actions job does — just for one account instead of all of them.
-// The engine itself lives in email-sync/src so there's only one copy of
-// the classify/upsert logic; this module is only the HTTP wrapper.
-// Loaded lazily: the engine lives outside server/ and resolves its own
-// dependencies from email-sync/node_modules. If a deployment ships only
-// server/, this fails here — one dead endpoint — instead of taking the
-// whole API down at require time.
-function loadEngine() {
-  return {
-    getConnection: require('../../email-sync/src/gmailConnections').getConnection,
-    syncConnection: require('../../email-sync/src/sync').syncConnection,
-  };
-}
+// Runs the sync engine on demand for the logged-in user, so the dashboard's
+// "Resync inbox" button does exactly what the twice-daily GitHub Actions job
+// does — just for one account instead of all of them. The engine itself
+// lives in server/sync so there's only one copy of the classify/upsert
+// logic; this module is only the HTTP wrapper.
+const { getConnection } = require('../sync/gmailConnections');
+const { syncConnection } = require('../sync');
 
 // A sync is minutes long on a first backfill. Without this, an impatient
 // double-click would run two passes over the same messages concurrently.
@@ -23,15 +15,6 @@ const runSync = async (req, res) => {
 
   if (inFlight.has(userId)) {
     return res.status(409).json({ error: 'A sync is already running for this account.' });
-  }
-
-  let getConnection;
-  let syncConnection;
-  try {
-    ({ getConnection, syncConnection } = loadEngine());
-  } catch (error) {
-    console.error('Sync: email-sync engine unavailable in this deployment:', error);
-    return res.status(503).json({ error: 'Inbox sync is unavailable right now.' });
   }
 
   let connection;

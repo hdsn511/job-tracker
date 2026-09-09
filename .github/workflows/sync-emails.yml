@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: email-sync
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
 
@@ -19,11 +19,11 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: email-sync/package-lock.json
+          cache-dependency-path: server/package-lock.json
 
       - run: npm ci
 
-      - run: node src/run.js
+      - run: npm run sync
         env:
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}

@@ -1,5 +1,5 @@
-const sql = require('./db');
-const { encrypt, decrypt } = require('./crypto');
+const sql = require('../db');
+const { encrypt, decrypt } = require('../tokenCrypto');
 
 async function getUserIdByEmail(email) {
   const rows = await sql`select id from users where email = ${email}`;

@@ -19,8 +19,8 @@
 require('dotenv').config();
 const http = require('node:http');
 const { exec } = require('node:child_process');
-const { createOAuthClient, SCOPES } = require('./gmailAuth');
-const { getUserIdByEmail, saveGmailConnection } = require('./gmailConnections');
+const { createOAuthClient, SCOPES } = require('../gmailAuth');
+const { getUserIdByEmail, saveGmailConnection } = require('../sync/gmailConnections');
 
 function openInBrowser(url) {
   const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
@@ -60,7 +60,7 @@ function waitForAuthCode(redirectUri) {
 async function main() {
   const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, TARGET_USER_EMAIL } = process.env;
   if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
-    console.error('Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET (in email-sync/.env) first.');
+    console.error('Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET (in server/.env) first.');
     process.exit(1);
   }
   if (!TARGET_USER_EMAIL) {

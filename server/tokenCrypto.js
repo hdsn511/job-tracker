@@ -1,7 +1,6 @@
-// AES-256-GCM at-rest encryption for Gmail refresh tokens — must produce/
-// read the exact same format as email-sync/src/crypto.js, since both write
-// to and read from the same gmail_connections table with the same
-// TOKEN_ENCRYPTION_KEY.
+// AES-256-GCM at-rest encryption for Gmail refresh tokens stored in the DB.
+// The key is separate from the app's JWT_SECRET on purpose — a leaked JWT
+// secret and a leaked token-encryption key are different blast radii.
 const crypto = require('node:crypto');
 
 const ALGORITHM = 'aes-256-gcm';
@@ -24,4 +23,15 @@ function encrypt(plaintext) {
   return [iv, authTag, ciphertext].map((buf) => buf.toString('hex')).join(':');
 }
 
-module.exports = { encrypt };
+function decrypt(payload) {
+  const [ivHex, authTagHex, ciphertextHex] = payload.split(':');
+  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), Buffer.from(ivHex, 'hex'));
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(ciphertextHex, 'hex')),
+    decipher.final(),
+  ]);
+  return plaintext.toString('utf8');
+}
+
+module.exports = { encrypt, decrypt };

@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "sync": "node scripts/sync-all.js",
+    "get-token": "node scripts/get-refresh-token.js",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",

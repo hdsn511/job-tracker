@@ -1,4 +1,4 @@
-const { getGmailClient } = require('./gmailAuth');
+const { getGmailClient } = require('../gmailAuth');
 const { listCandidateMessageIds, getMessage } = require('./gmail');
 const { classifyEmail } = require('./classifier');
 const { classifyWithGemini } = require('./gemini');

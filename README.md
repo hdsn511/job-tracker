@@ -32,7 +32,7 @@ interview invites and rejections, classified and grouped by company.
 **Backend:** Node.js, Express
 **Database:** Neon (PostgreSQL)
 **Auth:** JWT + bcrypt; Gmail OAuth with refresh tokens encrypted at rest (AES-256-GCM)
-**Email sync:** rule-based classifier with a Gemini fallback (`email-sync/`)
+**Email sync:** rule-based classifier with a Gemini fallback (`server/sync/`)
 **Hosting:** Vercel (frontend + backend), GitHub Actions for the scheduled sync
 
 ## Layout
@@ -41,14 +41,14 @@ interview invites and rejections, classified and grouped by company.
 | --- | --- |
 | `client/` | React app. `src/pages` are the three screens, `src/components/dashboard` the dashboard pieces, `src/lib/applications.js` all derived data (funnel, calendar, stats, note parsing). |
 | `server/` | Express API: `/auth`, `/jobs`, `/auth/gmail`. |
-| `email-sync/` | The Gmail → jobs pipeline. `src/sync.js` is the engine; `src/run.js` is the scheduled entry point and the server's `POST /auth/gmail/sync` calls the same code for one user. |
+| `server/sync/` | The Gmail → jobs pipeline. `index.js` is the engine; `scripts/sync-all.js` (`npm run sync`) is the scheduled entry point and `POST /auth/gmail/sync` runs the same code for one user. |
 
 ## Setup
 
 ```bash
 # database — run once against a fresh Neon database
 #   server/schema.sql
-#   email-sync/sql/001_gmail_connections.sql
+#   server/sql/001_gmail_connections.sql
 # existing databases also need:
 #   server/sql/002_jobs_archived.sql
 
@@ -60,5 +60,9 @@ npm run dev        # http://localhost:5173
 ```
 
 `server/.env` needs `DATABASE_URL`, `JWT_SECRET`, the `GMAIL_*` OAuth trio,
-`TOKEN_ENCRYPTION_KEY` (the same value `email-sync` uses) and, optionally,
-`GEMINI_API_KEY` for the classifier fallback used by the Resync button.
+`TOKEN_ENCRYPTION_KEY` and, optionally, `GEMINI_API_KEY` for the classifier
+fallback. See `server/.env.example`.
+
+The scheduled sync (`.github/workflows/sync-emails.yml`) runs from `server/`
+too, so the API and the cron share one dependency tree — which is what lets
+a `server`-rooted Vercel deploy serve `POST /auth/gmail/sync`.

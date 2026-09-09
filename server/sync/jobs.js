@@ -1,4 +1,4 @@
-const sql = require('./db');
+const sql = require('../db');
 
 const STOPWORDS = new Set(['the', 'a', 'an', 'of', 'and', 'at']);
 const COMPANY_SUFFIXES = /\b(inc|llc|corp|corporation|co|company|ltd)\b/g;
