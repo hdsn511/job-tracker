@@ -104,7 +104,7 @@ test('buildDenyListGmailQuery: ORs in the ATS allow-list as an override', () => 
   assert.match(query, /OR from:\(.*ashbyhq\.com.*\)/);
 });
 
-test('buildGmailCreateFilterUrl: produces a deep link with the query URL-encoded', () => {
+test('buildGmailCreateFilterUrl: produces a search deep link with the query URL-encoded', () => {
   const url = buildGmailCreateFilterUrl('from:(ashbyhq.com)');
-  assert.equal(url, 'https://mail.google.com/mail/u/0/#create-filter?query=from%3A(ashbyhq.com)');
+  assert.equal(url, 'https://mail.google.com/mail/u/0/#search/from%3A(ashbyhq.com)');
 });

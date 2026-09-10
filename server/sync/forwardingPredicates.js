@@ -95,8 +95,15 @@ function buildDenyListGmailQuery() {
   return `(${excludeCategories}) OR ${allowListClause}`;
 }
 
+/**
+ * Gmail's `#create-filter?query=` is not a real, working deep link -- it
+ * opens the dialog with the "Has the words" field empty. `#search/<query>`
+ * is: it runs the query in the search bar, and the "show search options"
+ * icon there opens the same dialog with fields already populated from it,
+ * "Create filter" one click away.
+ */
 function buildGmailCreateFilterUrl(query = buildDenyListGmailQuery()) {
-  return `https://mail.google.com/mail/u/0/#create-filter?query=${encodeURIComponent(query)}`;
+  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query)}`;
 }
 
 module.exports = {

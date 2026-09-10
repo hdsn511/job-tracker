@@ -144,14 +144,16 @@ export default function ForwardMail() {
                   <span>
                     Since this is a personal inbox, a filter decides what gets forwarded &mdash; job
                     mail only, not everything else. Click below to open Gmail with the filter criteria
-                    already filled in.
+                    already in the search bar.
                   </span>
                 </div>
                 <div className="jt-step">
                   <span className="jt-step-num">3</span>
                   <span>
-                    In the dialog, click <strong>Create filter</strong>, check{" "}
-                    <strong>Forward it to</strong>, and pick the address you just verified.
+                    Click the <strong>show search options</strong> icon (sliders, right of the search
+                    bar) &mdash; the criteria carry over automatically. Click{" "}
+                    <strong>Create filter</strong>, check <strong>Forward it to</strong>, and pick the
+                    address you just verified.
                   </span>
                 </div>
               </div>
@@ -175,7 +177,7 @@ export default function ForwardMail() {
                 style={{ textDecoration: "none", textAlign: "center" }}
               >
                 <MailIcon />
-                Open Gmail filter setup
+                Open Gmail with filter criteria
               </a>
             ) : null}
 
