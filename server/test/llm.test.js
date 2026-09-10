@@ -186,3 +186,62 @@ test('gemini.buildRequest: system prompt is split out of the message list', () =
   assert.equal(body.contents.length, 1);
   assert.equal(body.contents[0].role, 'user');
 });
+
+// --- misconfiguration is not silence ----------------------------------------
+// A missing key and a failing call both degrade to the rules, but only the
+// second was ever counted. That made a keyless deployment produce a summary
+// identical to a healthy run — the failure mode this whole telemetry exists
+// to prevent.
+const { classifyWithLlm, getLlmStats, resetLlmStats } = require('../sync/llm');
+
+function withEnv(vars, fn) {
+  const saved = {};
+  for (const k of ['LLM_PROVIDER', 'GROQ_API_KEY', 'GEMINI_API_KEY']) {
+    saved[k] = process.env[k];
+    delete process.env[k];
+  }
+  Object.assign(process.env, vars);
+  try {
+    return fn();
+  } finally {
+    for (const k of Object.keys(saved)) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+}
+
+const sampleMail = { from: 'careers@example.com', subject: 'Thanks for applying', body: 'We received your application.' };
+
+test('classifyWithLlm: no provider configured is counted, not swallowed', async () => {
+  await withEnv({}, async () => {
+    resetLlmStats();
+    const result = await classifyWithLlm(sampleMail, {});
+    assert.equal(result, null, 'must degrade to the rules');
+    const stats = getLlmStats();
+    assert.equal(stats.notConfigured, 1, 'the skip must be visible');
+    assert.equal(stats.attempted, 0);
+    assert.equal(stats.failed, 0);
+  });
+});
+
+test('classifyWithLlm: a named provider with no key is counted too', async () => {
+  // The likeliest deploy bug: LLM_PROVIDER set in the workflow, the secret
+  // never added. Exactly the state this repo shipped in.
+  await withEnv({ LLM_PROVIDER: 'groq' }, async () => {
+    resetLlmStats();
+    const result = await classifyWithLlm(sampleMail, {});
+    assert.equal(result, null);
+    assert.equal(getLlmStats().notConfigured, 1);
+  });
+});
+
+test('resetLlmStats: clears notConfigured along with the rest', async () => {
+  await withEnv({}, async () => {
+    resetLlmStats();
+    await classifyWithLlm(sampleMail, {});
+    assert.equal(getLlmStats().notConfigured, 1);
+    resetLlmStats();
+    assert.equal(getLlmStats().notConfigured, 0);
+  });
+});

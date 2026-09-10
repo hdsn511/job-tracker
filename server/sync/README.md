@@ -35,8 +35,12 @@ classify/upsert behaviour.
    to. `resolve.js` merges the two and holds the model output to the rules'
    guard rails. `providers.js` holds the provider adapters (Groq and Gemini)
    so switching backends is `LLM_PROVIDER=groq|gemini`, not a rewrite. With
-   no key at all the rules still answer, less accurately; the sync summary
-   reports `llmFailed` so a silent degradation is visible.
+   no key at all the rules still answer, less accurately. The summary reports
+   `llmFailed` for calls that were made and failed, and `llmNotConfigured`
+   for messages that never reached a provider because the key was missing —
+   two different faults that both degrade to the rules. Only the first used
+   to be counted, so a deployment missing its key logged a summary identical
+   to a healthy run.
 
    Currently pinned to **Groq** (`openai/gpt-oss-120b`). Its free tier caps
    at 8k tokens/minute — roughly 11 classifications a minute, which is the

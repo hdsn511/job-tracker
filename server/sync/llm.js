@@ -129,6 +129,12 @@ const stats = {
   rateLimited: 0,
   schemaRelaxed: 0,
   thinkingDisabled: 0,
+  // Messages that never reached a provider because none is configured. A
+  // failed call and an absent key both degrade to the rules, but only the
+  // first was ever counted — so a deployment missing its key produced a
+  // summary identical to a healthy run. This is the counter that tells them
+  // apart, and it must be incremented BEFORE the early returns below.
+  notConfigured: 0,
   inputTokens: 0,
   outputTokens: 0,
   thinkingTokens: 0,
@@ -147,6 +153,7 @@ function resetLlmStats() {
     rateLimited: 0,
     schemaRelaxed: 0,
     thinkingDisabled: 0,
+    notConfigured: 0,
     inputTokens: 0,
     outputTokens: 0,
     thinkingTokens: 0,
@@ -280,10 +287,16 @@ function cleanLlmString(value) {
  */
 async function classifyWithLlm(email, { ats } = {}) {
   const provider = activeProvider();
-  if (!provider) return null;
+  if (!provider) {
+    stats.notConfigured += 1;
+    return null;
+  }
 
   const apiKey = process.env[provider.apiKeyEnv];
-  if (!apiKey) return null;
+  if (!apiKey) {
+    stats.notConfigured += 1;
+    return null;
+  }
 
   const payload = buildLlmPayload(email);
   if (!payload) return null; // auth mail — never leaves the process

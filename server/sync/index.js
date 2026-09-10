@@ -150,6 +150,17 @@ async function syncConnection(
   const llm = getLlmStats();
   summary.llmAttempted = llm.attempted;
   summary.llmFailed = llm.failed;
+  summary.llmNotConfigured = llm.notConfigured;
+  if (llm.notConfigured > 0) {
+    // Distinct from a failed call and far more likely in a fresh deploy: the
+    // key never made it into the environment. Silent otherwise, because
+    // nothing is attempted and so nothing can fail.
+    log(
+      `WARNING: ${llm.notConfigured} messages were classified by the rules alone ` +
+      `because no LLM provider is configured. Set LLM_PROVIDER and the matching ` +
+      `API key (see server/.env.example); stage accuracy is materially worse without it.`,
+    );
+  }
   if (llm.failed > 0) {
     // Loud, because the pipeline degrades to rules silently by design. A
     // retired model or an exhausted quota otherwise looks like a good run.
