@@ -12,12 +12,24 @@ const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // matches the JWT's own 24h exp
 // vercel.app) — that requires SameSite=None, which browsers only honor
 // alongside Secure. Locally the frontend/backend share the "localhost"
 // site across ports, so Lax already covers it without needing https.
+//
+// Deliberately keyed on VERCEL rather than NODE_ENV: Vercel only
+// auto-injects NODE_ENV=production for framework-detected builds
+// (Next.js and friends), not for a plain Express app run as a function —
+// so NODE_ENV is unset here in every environment, Vercel included, and a
+// check against it would silently issue a Lax cookie in production. A Lax
+// cookie is still stored after a cross-site response, but the browser
+// won't attach it to the next cross-site fetch — only to a top-level
+// navigation — so the very next request (checking Gmail status right
+// after login) would go out with no cookie and read as logged out. VERCEL
+// is set to "1" on every Vercel deployment, preview or production,
+// regardless of framework, so it doesn't have this gap.
 function sessionCookieOptions() {
-  const isProd = process.env.NODE_ENV === 'production';
+  const isVercel = Boolean(process.env.VERCEL);
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    secure: isVercel,
+    sameSite: isVercel ? 'none' : 'lax',
     path: '/',
     maxAge: SESSION_MAX_AGE_MS,
   };
