@@ -1,42 +1,78 @@
 const { getGmailClient } = require('../gmailAuth');
 const { listCandidateMessageIds, getMessage } = require('./gmail');
-const { classifyEmail } = require('./classifier');
-const { classifyWithGemini } = require('./gemini');
+const { resolveMessage } = require('./resolve');
 const { listConnections, setLastSyncedAt } = require('./gmailConnections');
-const { getExistingJobs, upsertClassifiedEmail } = require('./jobs');
+const { loadCached, saveClassification } = require('./classificationCache');
+const { getLlmStats, resetLlmStats } = require('./llm');
+const { getExistingJobs, upsertJobFromMessages, groupMessages } = require('./jobs');
 
-// First sync for a newly connected account: how far back to look, since
-// there's no prior watermark yet.
+// Used when a connection has no explicit start date — the historical default.
 const DEFAULT_LOOKBACK_SECONDS = 30 * 24 * 60 * 60;
 
 // Gmail's per-user "units per minute" quota is easy to blow through on a
-// large first-time backfill if messages.get calls fire back-to-back.
+// large first-time backfill if messages.get calls fire back-to-back. Only
+// paid on a cache miss, so a re-read of an already-classified window is fast.
 const FETCH_DELAY_MS = 250;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Syncs one connected Gmail account into the jobs table and returns a
- * summary. Shared by the scheduled CLI run (run.js) and the app's
- * "Resync inbox" endpoint, so both behave identically — including the
- * watermark rule below.
+ * The floor of the sync window, in epoch seconds.
  *
- * `log` is injectable so the CLI can print progress while the API stays
- * quiet.
+ * This is the whole window, every run — not "since we last looked". The sync
+ * is a re-read: it re-examines everything back to the start date so that
+ * classifier improvements apply retroactively and a stage that was wrong can
+ * be corrected. The classification cache is what keeps that affordable.
  */
-async function syncConnection({ userId, gmailAddress, refreshToken, lastSyncedAt }, { log = () => {} } = {}) {
+function windowFloorSeconds(syncStartDate) {
+  if (syncStartDate) {
+    return Math.floor(new Date(syncStartDate).getTime() / 1000);
+  }
+  return Math.floor(Date.now() / 1000) - DEFAULT_LOOKBACK_SECONDS;
+}
+
+/**
+ * Syncs one connected Gmail account into the jobs table and returns a summary.
+ * Shared by the scheduled CLI run and the app's "Resync inbox" endpoint.
+ *
+ * `log` is injectable so the CLI can print progress while the API stays quiet.
+ */
+async function syncConnection(
+  { userId, gmailAddress, refreshToken, syncStartDate },
+  { log = () => {} } = {},
+) {
   const gmail = getGmailClient(refreshToken);
-  const afterEpochSeconds = lastSyncedAt || Math.floor(Date.now() / 1000) - DEFAULT_LOOKBACK_SECONDS;
+  const afterEpochSeconds = windowFloorSeconds(syncStartDate);
   const runStartedAt = Math.floor(Date.now() / 1000);
 
-  log(`\n=== ${gmailAddress} (user ${userId}) — since ${new Date(afterEpochSeconds * 1000).toISOString()} ===`);
+  log(`\n=== ${gmailAddress} (user ${userId}) — re-reading since ${new Date(afterEpochSeconds * 1000).toISOString().slice(0, 10)} ===`);
 
+  resetLlmStats();
   const messageIds = await listCandidateMessageIds(gmail, { afterEpochSeconds });
-  log(`Found ${messageIds.length} candidate message(s).`);
+  log(`Found ${messageIds.length} candidate message(s) in the window.`);
 
-  const existingJobs = await getExistingJobs(userId);
-  const summary = { inserted: 0, updated: 0, noise: 0, needsReview: 0, errors: 0 };
+  const cache = await loadCached(userId, messageIds);
+  log(`${cache.size} already classified, ${messageIds.length - cache.size} to classify.`);
+
+  const summary = {
+    inserted: 0,
+    updated: 0,
+    noise: 0,
+    needsReview: 0,
+    errors: 0,
+    cacheHits: cache.size,
+    classified: 0,
+  };
+
+  const classified = [];
 
   for (const id of messageIds) {
+    const cached = cache.get(id);
+    if (cached && cached.date) {
+      if (cached.isNoise) summary.noise += 1;
+      else classified.push(cached);
+      continue;
+    }
+
     await sleep(FETCH_DELAY_MS);
 
     let email;
@@ -48,64 +84,89 @@ async function syncConnection({ userId, gmailAddress, refreshToken, lastSyncedAt
       continue;
     }
 
-    let classified;
+    let result;
+    // Whether the LLM failed while classifying THIS message, as opposed to
+    // being absent entirely. The distinction decides whether the answer is
+    // worth caching.
+    const failuresBefore = getLlmStats().failed;
     try {
-      classified = classifyEmail(email);
+      result = await resolveMessage(email);
+      result.date = new Date(email.date || Date.now());
+      summary.classified += 1;
     } catch (err) {
       log(`Failed to classify message ${id} ("${email.subject}"): ${err.message}`);
       summary.errors += 1;
       continue;
     }
+    const degraded = getLlmStats().failed > failuresBefore;
 
-    if (classified.isNoise) {
-      summary.noise += 1;
-      continue;
-    }
-
-    if (classified.needsFallback) {
-      const fallback = await classifyWithGemini(email);
-      if (fallback) {
-        classified.status = classified.status || fallback.status;
-        classified.company = classified.company || fallback.company;
-        classified.jobTitle = classified.jobTitle || fallback.jobTitle;
-        if (!classified.detail && classified.status) classified.detail = classified.status;
+    if (degraded) {
+      // The LLM was expected but errored (dead model, exhausted quota), so
+      // this result came from the weaker rules path. Caching it would be a
+      // trap: the cache is keyed only by message id, so once the quota is
+      // restored the message would never be re-examined. Leave it uncached
+      // and it is simply reclassified on the next run.
+      summary.uncachedDegraded = (summary.uncachedDegraded || 0) + 1;
+    } else {
+      try {
+        await saveClassification(userId, id, result);
+      } catch (err) {
+        // A cache write failure costs an LLM call next run but is not fatal.
+        log(`Could not cache classification for ${id}: ${err.message}`);
       }
     }
 
-    if (!classified.status || !classified.company) {
-      summary.needsReview += 1;
-      log(
-        `NEEDS REVIEW — "${email.subject}" from ${email.from} (status=${classified.status}, company=${classified.company})`,
-      );
+    if (result.isNoise) {
+      summary.noise += 1;
       continue;
     }
+    classified.push(result);
+  }
 
+  const usable = classified.filter((r) => {
+    if (!r.status || !r.company) {
+      summary.needsReview += 1;
+      log(`NEEDS REVIEW — company=${r.company} stage=${r.status} (source=${r.source})`);
+      return false;
+    }
+    return true;
+  });
+
+  const existingJobs = await getExistingJobs(userId);
+  const groups = groupMessages(usable);
+  log(`${usable.length} classified message(s) -> ${groups.length} job(s).`);
+
+  for (const group of groups) {
     try {
-      const result = await upsertClassifiedEmail(userId, existingJobs, classified, {
-        date: new Date(email.date || Date.now()),
-      });
+      const result = await upsertJobFromMessages(userId, existingJobs, group);
       summary[result.action === 'inserted' ? 'inserted' : 'updated'] += 1;
-      log(`${result.action.toUpperCase()} — ${classified.company} / ${result.job.job_title} -> ${result.job.status}`);
+      log(`${result.action.toUpperCase()} — ${result.job.company_name} / ${result.job.job_title} -> ${result.job.status}`);
     } catch (err) {
-      log(`Failed to upsert for message ${id}: ${err.message}`);
+      log(`Failed to upsert ${group.company} / ${group.jobTitle}: ${err.message}`);
       summary.errors += 1;
     }
   }
 
-  if (summary.errors > 0) {
-    // Some messages in this window weren't actually processed (e.g. a
-    // quota error mid-run) — leave the watermark where it was so the next
-    // run retries the same window instead of silently skipping them.
-    // Already-inserted/updated jobs are safe to see again: upsert matches
-    // by ref/company+title, and noise/needsReview emails just get
-    // reclassified the same way.
-    log(`Summary: ${JSON.stringify(summary)} — watermark NOT advanced due to errors, will retry this window next run.`);
-  } else {
-    await setLastSyncedAt(userId, runStartedAt);
-    log(`Summary: ${JSON.stringify(summary)}`);
+  const llm = getLlmStats();
+  summary.llmAttempted = llm.attempted;
+  summary.llmFailed = llm.failed;
+  if (llm.failed > 0) {
+    // Loud, because the pipeline degrades to rules silently by design. A
+    // retired model or an exhausted quota otherwise looks like a good run.
+    log(
+      `WARNING: ${llm.failed}/${llm.attempted} LLM classifications failed — ` +
+      `these fell back to the rule engine, which is less accurate on stage. ` +
+      `Last error: ${llm.lastError}`,
+    );
   }
 
-  return { summary, syncedAt: summary.errors > 0 ? lastSyncedAt : runStartedAt };
+  // `last_synced_at` is now purely informational — the window is anchored to
+  // the start date, not to this timestamp — so it is safe to advance even
+  // after errors. Anything that failed is simply retried on the next re-read.
+  await setLastSyncedAt(userId, runStartedAt);
+  log(`Summary: ${JSON.stringify(summary)}`);
+
+  return { summary, syncedAt: runStartedAt };
 }
 
 /** Every connected account in turn — what the scheduled job runs. */
@@ -113,7 +174,7 @@ async function syncAllConnections({ log = () => {} } = {}) {
   const connections = await listConnections();
 
   if (connections.length === 0) {
-    log('No Gmail connections found. Run `npm run get-token` to connect an account.');
+    log('No Gmail connections found. Connect an account from the app, or run `npm run get-token`.');
     return [];
   }
 
@@ -128,4 +189,9 @@ async function syncAllConnections({ log = () => {} } = {}) {
   return results;
 }
 
-module.exports = { syncConnection, syncAllConnections, DEFAULT_LOOKBACK_SECONDS };
+module.exports = {
+  syncConnection,
+  syncAllConnections,
+  windowFloorSeconds,
+  DEFAULT_LOOKBACK_SECONDS,
+};

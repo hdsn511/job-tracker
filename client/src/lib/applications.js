@@ -4,7 +4,13 @@
  * headline stats. Kept out of the components so each one only renders.
  */
 
-export const STAGES = ["Applied", "Interviewing", "Offer", "Rejected"];
+/**
+ * Assessment sits between Applied and Interviewing: it is an online
+ * assessment / coding challenge / take-home, i.e. a filter you pass alone.
+ * "Interviewing" therefore means a real human conversation and nothing else,
+ * which is the only way "3 interviewing" means anything.
+ */
+export const STAGES = ["Applied", "Assessment", "Interviewing", "Offer", "Rejected"];
 
 /**
  * Per-stage badge palette (text / fill / border / icon).
@@ -19,6 +25,26 @@ export const BADGE = {
     bd: "#cdd7c2",
     dash: "",
     path: "M12 6.5v6l2.6 3.4",
+  },
+  // Slate — the palette's one cool neutral, and the only hue left that reads
+  // as its own stage at a glance: sage is Applied, moss is Offer, terracotta
+  // is Rejected, and the clay/stone tones sit too close to Rejected's pink
+  // to tell apart in a scanning list. Slate keeps the natural-materials
+  // vocabulary (it is the stone family cooled down) while landing nowhere
+  // near Interviewing's amber.
+  //
+  // The badge is never colour-only: the ring is dotted where Interviewing's
+  // is dashed, and the inner mark is a terminal-prompt chevron for "a thing
+  // you sit down and solve".
+  //
+  // fg on bg measures 4.82:1 (WCAG 2.1 relative luminance), inside the band
+  // the other four stages already occupy (4.53:1 – 5.10:1).
+  Assessment: {
+    fg: "#4a6a80",
+    bg: "#e7ecf1",
+    bd: "#c8d5df",
+    dash: "0.5 4.4",
+    path: "m10.6 9.4 2.6 2.6-2.6 2.6",
   },
   Interviewing: {
     fg: "#8a6224",
@@ -162,38 +188,176 @@ export function stageCounts(apps) {
 
 /* ---------------------------------------------------------------- funnel */
 
+/**
+ * How deep into the pipeline each stage is. Only the four forward stages are
+ * ranked: "Rejected" is an outcome, not a depth. An app auto-rejected the
+ * morning after applying and one rejected after four onsites carry the same
+ * status and tell completely different stories, and separating those is the
+ * whole point of the funnel below.
+ */
+const STAGE_RANK = { Applied: 1, Assessment: 2, Interviewing: 3, Offer: 4 };
+
+/** The ranked stages, in rank order, so `RANKED_STAGES[rank - 1]` is a name. */
+const RANKED_STAGES = ["Applied", "Assessment", "Interviewing", "Offer"];
+
+/**
+ * The stage a single timeline line is evidence of, or null for lines that
+ * say nothing about depth (a rejection, a hand-written note).
+ */
+function stageEvidence(text) {
+  const line = text.toLowerCase();
+
+  // LEGACY ROWS, and this check has to come first.
+  //
+  // Before Assessment was a stage of its own, the sync writer filed online
+  // assessments under Interviewing with a qualifier:
+  //
+  //   [2026-08-29] Interviewing — Assessment/OA (ref: R-40218)
+  //
+  // That line names two stages, and the scan below deliberately takes the
+  // highest one — which for this line would be Interviewing, crediting the
+  // app with a human conversation that never happened and inflating every
+  // interview-stage number in the funnel. The qualifier is the more specific
+  // signal and so it wins: any line mentioning an assessment is capped at
+  // Assessment-level evidence, whatever stage name it was filed under.
+  if (line.includes("assessment")) return "Assessment";
+
+  // Otherwise: the highest stage named on the line. Iterating in rank order
+  // and keeping the last hit means "Applied — moving you to Offer" is read
+  // as Offer rather than as whichever name happens to appear first.
+  let found = null;
+  RANKED_STAGES.forEach((stage) => {
+    if (line.includes(stage.toLowerCase())) found = stage;
+  });
+  return found;
+}
+
+/**
+ * The furthest stage an application ever reached, read off its timeline
+ * rather than its current status — because the current status of anything
+ * that ended badly is just "Rejected", which erases the history.
+ */
+export function furthestStageReached(app) {
+  let rank = 0;
+
+  (app.events || []).forEach((event) => {
+    const stage = stageEvidence(event.text || "");
+    if (stage) rank = Math.max(rank, STAGE_RANK[stage]);
+  });
+
+  // The current status is evidence too: an app sitting at "Interviewing" has
+  // demonstrably reached it, and for rows added by hand it is the *only*
+  // evidence there is — they have no sync lines to read. "Rejected" is
+  // unranked and contributes nothing, which is exactly right; it says the
+  // app is over, never how far it got.
+  rank = Math.max(rank, STAGE_RANK[app.status] || 0);
+
+  return RANKED_STAGES[rank - 1] || "Applied";
+}
+
+/**
+ * The funnel, attributed by furthest stage reached.
+ *
+ * This used to read current status only, so every rejection — however late —
+ * collapsed into one "Reviewed -> Rejected" ribbon, and an offer that fell
+ * through looked identical to an instant auto-reject. Now each rejection
+ * leaves the pipeline from the stage it actually died at, which is the one
+ * thing you want to know when you look at a month of applications.
+ */
 export function sankeyModel(apps) {
-  const count = (predicate) => apps.filter(predicate).length;
-  const total = apps.length;
-  const rejected = count((a) => a.status === "Rejected");
-  const offer = count((a) => a.status === "Offer");
-  const inProgress = count((a) => a.status === "Interviewing");
-  const interview = offer + inProgress;
-  const reviewed = rejected + interview;
+  // Reduce each app to the only two facts the funnel needs, once, rather
+  // than re-walking every timeline inside each of the counts below.
+  const depth = apps.map((app) => ({
+    rank: STAGE_RANK[furthestStageReached(app)],
+    rejected: app.status === "Rejected",
+  }));
+  const count = (predicate) => depth.filter(predicate).length;
+  const total = depth.length;
+
+  // Stage bars are "reached this stage or better", so each one is the sum of
+  // everything downstream and the ribbons balance by construction.
+  const assessment = count((d) => d.rank >= 2);
+  const interview = count((d) => d.rank >= 3);
+
+  // Live offers only. An offer that ended in a rejection is counted where it
+  // died, not where it peaked — counting it in both places would draw it
+  // twice and break the flow.
+  const offer = count((d) => d.rank >= 4 && !d.rejected);
+
+  // Still moving, split by which bar the ribbon leaves from. Both land in
+  // the same "Still in loop" node: from the reader's side, an app you are
+  // mid-OA on and one you are mid-loop on are both simply still alive.
+  const inAssessment = count((d) => d.rank === 2 && !d.rejected);
+  const inInterview = count((d) => d.rank === 3 && !d.rejected);
+  const inProgress = inAssessment + inInterview;
+
+  // Where the rejections happened. Offer-level rejections (a pulled offer, a
+  // backed-out headcount) fold into the after-interview bucket: the strip is
+  // five columns wide with no room for a sixth terminal, and every one of
+  // them ran the interview gauntlet to get there anyway.
+  const rejectedAtApply = count((d) => d.rejected && d.rank === 1);
+  const rejectedAtAssessment = count((d) => d.rejected && d.rank === 2);
+  const rejectedAtInterview = count((d) => d.rejected && d.rank >= 3);
+
+  // "Reviewed" is anything that drew a real outcome: it either moved past
+  // the application or came back a no. Everything else is silence.
+  const reviewed = assessment + rejectedAtApply;
   const noResponse = Math.max(total - reviewed, 0);
 
   // `color` fills the node bar and its ribbons; `ink` is the text-safe
-  // version used for the value under the label. Hues run cool-to-warm
-  // left to right so a column reads as a stage, not a rainbow.
+  // version used for the value under the label. Hues run cool-to-warm left
+  // to right so a column reads as a stage, not a rainbow — Assessment takes
+  // the slate from its badge, which sits at the cool end where the stage
+  // does. The three rejection terminals share one terracotta deepened left
+  // to right, so a late rejection carries visibly more weight than an
+  // instant no while still reading as the same kind of ending.
   const nodes = [
     { id: "apps", col: 0, label: "Applications", value: total, color: "#7e8f73", ink: "#4f6047" },
     { id: "rev", col: 1, label: "Reviewed", value: reviewed, color: "#8c9a84", ink: "#55694b" },
     { id: "nores", col: 1, label: "No response", value: noResponse, color: "#c6beb1", ink: "#6b6255" },
-    { id: "int", col: 2, label: "Interview", value: interview, color: "#6f8f7a", ink: "#3f6b57" },
-    { id: "rej", col: 2, label: "Rejected", value: rejected, color: "#c27b66", ink: "#9e5540" },
-    { id: "prog", col: 3, label: "Still in loop", value: inProgress, color: "#c9a25c", ink: "#8a6224" },
-    { id: "off", col: 3, label: "Offer", value: offer, color: "#5c8a66", ink: "#3f6b4f" },
-    { id: "pend", col: 4, label: "Pending decision", value: offer, color: "#7fa98a", ink: "#47755a" },
+    { id: "asmt", col: 2, label: "Assessment", value: assessment, color: "#8fa2ae", ink: "#4a6a80" },
+    {
+      id: "rejApply",
+      col: 2,
+      label: "Rejected at apply",
+      value: rejectedAtApply,
+      color: "#d3ab9f",
+      ink: "#9e5540",
+    },
+    { id: "int", col: 3, label: "Interview", value: interview, color: "#6f8f7a", ink: "#3f6b57" },
+    {
+      id: "rejAsmt",
+      col: 3,
+      label: "Rejected after OA",
+      value: rejectedAtAssessment,
+      color: "#cb9383",
+      ink: "#9e5540",
+    },
+    { id: "prog", col: 4, label: "Still in loop", value: inProgress, color: "#c9a25c", ink: "#8a6224" },
+    { id: "off", col: 4, label: "Offer", value: offer, color: "#5c8a66", ink: "#3f6b4f" },
+    {
+      id: "rejInt",
+      col: 4,
+      label: "Rejected after interview",
+      value: rejectedAtInterview,
+      color: "#c27b66",
+      ink: "#9e5540",
+    },
   ];
 
+  // Ordered to match the node stacks above: ribbons leave a bar in the same
+  // order the targets are stacked, so nothing crosses that does not have to.
   const links = [
     ["apps", "rev", reviewed],
     ["apps", "nores", noResponse],
-    ["rev", "int", interview],
-    ["rev", "rej", rejected],
-    ["int", "prog", inProgress],
+    ["rev", "asmt", assessment],
+    ["rev", "rejApply", rejectedAtApply],
+    ["asmt", "int", interview],
+    ["asmt", "prog", inAssessment],
+    ["asmt", "rejAsmt", rejectedAtAssessment],
+    ["int", "prog", inInterview],
     ["int", "off", offer],
-    ["off", "pend", offer],
+    ["int", "rejInt", rejectedAtInterview],
   ];
 
   return {
@@ -387,9 +551,17 @@ export function headlineStats(apps) {
     },
     {
       key: "live",
+      // Every stage that has not ended: Assessment belongs here as much as
+      // the other three, and leaving it out would quietly shrink the number
+      // the moment the sync started filing OAs under their own stage.
+      //
+      // The note names both stages rather than summing them. "N interviewing"
+      // alone now means strictly human conversations, so on its own it would
+      // read as a drop rather than as a split — and the two are worth very
+      // different amounts of hope.
       label: "Still live",
-      value: counts.Applied + counts.Interviewing + counts.Offer,
-      note: `${counts.Interviewing} interviewing`,
+      value: counts.Applied + counts.Assessment + counts.Interviewing + counts.Offer,
+      note: `${counts.Assessment} in assessment · ${counts.Interviewing} interviewing`,
       color: "var(--jt-ink-sage)",
     },
     {

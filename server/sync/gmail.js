@@ -65,14 +65,75 @@ function decodeBase64Url(data) {
   return Buffer.from(data, 'base64url').toString('utf8');
 }
 
+const HTML_ENTITIES = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  '#39': "'",
+  '#8217': '’',
+  '#8211': '–',
+  '#8212': '—',
+  mdash: '—',
+  ndash: '–',
+  rsquo: '’',
+  lsquo: '‘',
+  ldquo: '“',
+  rdquo: '”',
+  hellip: '…',
+  // Accented Latin-1 names show up in company and candidate names
+  // ("Nestl&eacute;", "r&eacute;sum&eacute;").
+  eacute: 'é',
+  egrave: 'è',
+  agrave: 'à',
+  ccedil: 'ç',
+  uuml: 'ü',
+  ouml: 'ö',
+  auml: 'ä',
+  ntilde: 'ñ',
+  oslash: 'ø',
+  aring: 'å',
+};
+
+function decodeEntities(text) {
+  return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, name) => {
+    const known = HTML_ENTITIES[name.toLowerCase()] ?? HTML_ENTITIES[name];
+    if (known !== undefined) return known;
+    const numeric = /^#x([0-9a-f]+)$/i.exec(name) || /^#(\d+)$/.exec(name);
+    if (numeric) {
+      const code = /^#x/i.test(name) ? parseInt(numeric[1], 16) : parseInt(numeric[1], 10);
+      if (Number.isFinite(code) && code > 0 && code <= 0x10ffff) return String.fromCodePoint(code);
+    }
+    return whole;
+  });
+}
+
+// Block-level markup carries the line structure of the original email. The
+// classifier's field patterns are line-anchored ("Job Title: ...") and its
+// captures stop at newlines, so flattening an HTML body to one long line —
+// which is what collapsing all whitespace used to do — is what made titles
+// unextractable in HTML-only mail.
+const BLOCK_TAG_PATTERN =
+  /<\s*\/?\s*(?:br|p|div|tr|li|ul|ol|table|h[1-6]|blockquote|section|header|footer|hr)\b[^>]*>/gi;
+
 function stripHtml(html) {
-  return html
+  const text = html
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
+    .replace(/<\s*\/?\s*td\b[^>]*>/gi, '\t')
+    .replace(BLOCK_TAG_PATTERN, '\n')
+    // Remaining inline tags (<a>, <span>, <strong>) sit inside a line.
+    .replace(/<[^>]+>/g, '');
+
+  return decodeEntities(text)
+    // Horizontal whitespace only — newlines are meaningful now.
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    // A run of block boundaries (</div><div>, </p><p>) is still just one
+    // line break as far as the classifier is concerned.
+    .replace(/\n{2,}/g, '\n')
     .trim();
 }
 
@@ -127,6 +188,8 @@ async function getMessage(gmail, id) {
 
 module.exports = {
   CANDIDATE_SENDER_TERMS,
+  stripHtml,
+  extractBody,
   buildSearchQuery,
   listCandidateMessageIds,
   getMessage,

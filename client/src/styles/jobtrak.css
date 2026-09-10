@@ -1308,6 +1308,21 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
 }
 
 /* Numerals float in a pale circle rather than sitting in a heavy box. */
+/* The start-date picker sits inside step 2 of the connect flow, indented
+   under its sentence rather than beside it so the step still reads as one
+   instruction. */
+.jt-since-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 6px;
+  max-width: 220px;
+}
+
+.jt-since-field .jt-input {
+  width: 100%;
+}
+
 .jt-step-num {
   width: 26px;
   height: 26px;

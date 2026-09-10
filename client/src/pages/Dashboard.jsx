@@ -258,7 +258,11 @@ export default function Dashboard() {
                 Your <em>pipeline</em>
               </h1>
               <span className="jt-label">
-                {apps.length} tracked &middot; {counts.Interviewing} interviewing
+                {/* Both stages, not their sum: "interviewing" means a human
+                    conversation now that assessments have their own stage,
+                    so folding the two together would overstate it. */}
+                {apps.length} tracked &middot; {counts.Assessment} in assessment &middot;{" "}
+                {counts.Interviewing} interviewing
               </span>
             </div>
             <FunnelPanel apps={apps} />

@@ -1,8 +1,9 @@
 /**
  * Inline icons on lucide's 24x24 grid at the theme's 1.5 stroke weight.
- * Inline rather than lucide-react so the dashed "Interviewing" ring and the
- * wordmark stay exactly as drawn; everything else matches lucide's
- * geometry, so swapping to the package later is a one-line change.
+ * Inline rather than lucide-react so the per-stage rings (dashed for
+ * Interviewing, dotted for Assessment) and the wordmark stay exactly as
+ * drawn; everything else matches lucide's geometry, so swapping to the
+ * package later is a one-line change.
  */
 
 function Stroke({ size = 16, children, ...props }) {

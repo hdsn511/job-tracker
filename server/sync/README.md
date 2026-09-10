@@ -1,8 +1,8 @@
 # sync
 
-Pulls job-application emails out of Gmail, classifies them with free
-rule-based logic (Gemini Flash as a low-confidence fallback), and upserts
-them into the `jobs` table the app already uses.
+Pulls job-application emails out of Gmail, classifies them with
+deterministic rules plus an LLM (currently Groq) for stage and job title,
+and upserts them into the `jobs` table the app already uses.
 
 Two entry points, one engine:
 
@@ -20,21 +20,40 @@ classify/upsert behaviour.
    `gmail_connections` table. `syncAllConnections()` loops over every row;
    `getConnection(userId)` fetches just one for the API route.
 2. `gmail.js` searches each connected account's Gmail for mail from known
-   ATS/employer domains, received since that account's last successful run
-   (`gmail_connections.last_synced_at` — needs only `gmail.readonly`, no
-   write access to Gmail).
-3. `classifier.js` runs pure, deterministic rules: sender-domain → ATS →
-   company name, subject/body regex → job title + job ID + status. See
-   `test/classifier.test.js` for the exact patterns it's tuned against.
-4. If the rules can't determine a status or company, `gemini.js` asks Gemini
-   Flash's free tier once per email (skipped entirely if `GEMINI_API_KEY`
-   isn't set — those emails are just logged as `NEEDS REVIEW`).
-5. `jobs.js` matches the result against that user's existing rows (by an
-   embedded job ID first, then fuzzy company+title matching), and inserts or
-   updates. Every match appends a dated line to `notes` rather than
-   overwriting it, and status only moves forward (Applied → Interviewing →
-   Offer/Rejected), so an out-of-order or re-sent email can't regress a
-   further-along application.
+   ATS/employer domains, back to `gmail_connections.sync_start_date` (needs
+   only `gmail.readonly`, no write access). This is the WHOLE window on every
+   run, not "since we last looked" — the sync is a re-read, which is what
+   makes classifier improvements apply retroactively.
+3. `redact.js` is the boundary to the third-party LLM. Credential mail
+   (one-time passcodes, verification codes) is dropped outright; what does
+   get sent has codes, tracking URLs, emails and phone numbers scrubbed.
+4. `classifier.js` runs pure, deterministic rules for what is genuinely
+   deterministic: sender-domain → ATS → company, plus job ID and digest
+   noise. See `test/classifier.test.js` for the patterns it's tuned against.
+5. `llm.js` is the PRIMARY classifier for stage and job title —
+   not a fallback. Those failed on phrasing, an unbounded space regex loses
+   to. `resolve.js` merges the two and holds the model output to the rules'
+   guard rails. `providers.js` holds the provider adapters (Groq and Gemini)
+   so switching backends is `LLM_PROVIDER=groq|gemini`, not a rewrite. With
+   no key at all the rules still answer, less accurately; the sync summary
+   reports `llmFailed` so a silent degradation is visible.
+
+   Currently pinned to **Groq** (`openai/gpt-oss-120b`). Its free tier caps
+   at 8k tokens/minute — roughly 11 classifications a minute, which is the
+   throughput ceiling to watch as user count grows, not the price. Gemini's
+   adapter is written and tested but its AI Studio project has no credits;
+   note that Google Cloud trial credits live on Vertex AI, a different
+   endpoint from the `generativelanguage.googleapis.com` one used here.
+6. `classificationCache.js` stores the derived result per Gmail message id
+   (never the raw body), so a re-read costs no LLM calls for mail already
+   seen. A result produced while the LLM was erroring is deliberately NOT
+   cached, so restoring quota re-examines those messages.
+7. `jobs.js` groups the classified messages into jobs (embedded job ID
+   first, then fuzzy company+title) and writes each one authoritatively:
+   `deriveStage()` re-derives the stage from ALL of that job's mail, so a
+   stage that was wrong is corrected — including downward. A terminal
+   outcome wins outright, since you can be rejected after an interview.
+   Rows flagged `manual_override` keep the stage the user set by hand.
 
 A run that hits any error leaves `last_synced_at` where it was, so the next
 run retries the same window instead of silently skipping messages. Re-seeing
@@ -64,18 +83,29 @@ a message is safe: the upsert matches by ref or company+title.
 
 4. **GitHub Actions secrets** (Settings → Secrets and variables → Actions):
    `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `DATABASE_URL`,
-   `TOKEN_ENCRYPTION_KEY`, and optionally `GEMINI_API_KEY`. The workflow at
+   `TOKEN_ENCRYPTION_KEY`, and `GROQ_API_KEY`. The workflow at
    `.github/workflows/sync-emails.yml` runs twice a day and can also be
    triggered manually from the Actions tab.
 
 ## Local development
 
-- `npm test` — classifier unit tests, no network or credentials needed.
+- `npm test` — unit tests plus a scored run against `test/fixtures/inbox-corpus.json`,
+  a corpus of real (redacted) ATS mail. No network or credentials needed: it
+  scores the deterministic rules only, which is the floor the system degrades
+  to without an API key. The corpus itself is gitignored — even redacted it
+  names the mailbox owner and every company they applied to — so on a fresh
+  clone the six corpus tests skip until you build one.
+- `node scripts/build-corpus.js` — builds that corpus from a connected
+  mailbox, redacting each message through `sync/redact.js` on the way out.
+- `node scripts/score-llm.js` — scores the real LLM path against the same
+  corpus. Needs `GROQ_API_KEY`; run it after any prompt or model change.
+- `npm run migrate` — applies `migrations/*.sql`; every migration is idempotent.
 - `npm run sync` — one real sync for every connected account.
 
 ## Tuning the rules
 
 The rules in `classifier.js` and `companyMap.js` were built from a one-time
 scan of real inbox examples. As new ATSes, senders, or phrasings show up in
-`NEEDS REVIEW` log lines, add a pattern and a matching test case rather than
-leaning on the Gemini fallback — it's meant to stay rare.
+`NEEDS REVIEW` log lines, add a pattern and a matching test case — the rules
+are the floor the system degrades to when the LLM is unavailable, so widening
+them is what keeps that floor high.

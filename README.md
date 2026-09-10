@@ -60,7 +60,7 @@ npm run dev        # http://localhost:5173
 ```
 
 `server/.env` needs `DATABASE_URL`, `JWT_SECRET`, the `GMAIL_*` OAuth trio,
-`TOKEN_ENCRYPTION_KEY` and, optionally, `GEMINI_API_KEY` for the classifier
+`TOKEN_ENCRYPTION_KEY` and `GROQ_API_KEY` for the classifier
 fallback. See `server/.env.example`.
 
 The scheduled sync (`.github/workflows/sync-emails.yml`) runs from `server/`

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const sql = require('../db');
 const { createOAuthClient, SCOPES } = require('../gmailAuth');
 const { encrypt } = require('../tokenCrypto');
+const { normalizeStartDate, DEFAULT_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS } = require('../sync/startDate');
 
 // CLIENT_ORIGIN is a comma-separated allow-list for CORS; the OAuth
 // callback can only redirect to one place, so take the first entry.
@@ -14,9 +15,19 @@ const FRONTEND_URL =
 // header for the callback — it's carried in a short-lived signed `state`
 // instead.
 const startGmailConnect = async (req, res) => {
-  const state = jwt.sign({ userId: req.user.id, purpose: 'gmail-connect' }, process.env.JWT_SECRET, {
-    expiresIn: '10m',
-  });
+  // How far back the first sync should read. Carried through the OAuth round
+  // trip in the signed state, since the callback has no session to read it
+  // from and an attacker-supplied window would be a quota lever.
+  const startDate = normalizeStartDate(req.query.since);
+  if (startDate.error) {
+    return res.status(400).json({ error: startDate.error });
+  }
+
+  const state = jwt.sign(
+    { userId: req.user.id, purpose: 'gmail-connect', since: startDate.value },
+    process.env.JWT_SECRET,
+    { expiresIn: '10m' },
+  );
 
   const oauth2Client = createOAuthClient();
   const url = oauth2Client.generateAuthUrl({
@@ -43,8 +54,9 @@ const handleGmailCallback = async (req, res) => {
   }
 
   let userId;
+  let since = null;
   try {
-    ({ userId } = jwt.verify(state, process.env.JWT_SECRET));
+    ({ userId, since } = jwt.verify(state, process.env.JWT_SECRET));
   } catch (err) {
     console.error('Gmail callback: invalid/expired state:', err.message);
     return res.redirect(`${FRONTEND_URL}/dashboard?gmail=error`);
@@ -65,11 +77,13 @@ const handleGmailCallback = async (req, res) => {
     const encrypted = encrypt(tokens.refresh_token);
 
     await sql`
-      insert into gmail_connections (user_id, gmail_address, refresh_token_encrypted)
-      values (${userId}, ${user.email}, ${encrypted})
+      insert into gmail_connections (user_id, gmail_address, refresh_token_encrypted, sync_start_date)
+      values (${userId}, ${user.email}, ${encrypted}, ${since})
       on conflict (user_id) do update
         set gmail_address = excluded.gmail_address,
-            refresh_token_encrypted = excluded.refresh_token_encrypted
+            refresh_token_encrypted = excluded.refresh_token_encrypted,
+            -- Reconnecting without picking a date keeps the window already set.
+            sync_start_date = coalesce(excluded.sync_start_date, gmail_connections.sync_start_date)
     `;
 
     console.log(`Gmail connected for user ${userId} (${user.email})`);
@@ -83,7 +97,7 @@ const handleGmailCallback = async (req, res) => {
 const getGmailStatus = async (req, res) => {
   try {
     const [row] = await sql`
-      select gmail_address, connected_at, last_synced_at
+      select gmail_address, connected_at, last_synced_at, sync_start_date
       from gmail_connections where user_id = ${req.user.id}
     `;
     res.json({
@@ -92,6 +106,9 @@ const getGmailStatus = async (req, res) => {
       connectedAt: row ? row.connected_at : null,
       // bigint epoch seconds — the driver hands it back as a string.
       lastSyncedAt: row && row.last_synced_at !== null ? Number(row.last_synced_at) : null,
+      syncStartDate: row && row.sync_start_date ? String(row.sync_start_date).slice(0, 10) : null,
+      defaultLookbackDays: DEFAULT_LOOKBACK_DAYS,
+      maxLookbackDays: MAX_LOOKBACK_DAYS,
     });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

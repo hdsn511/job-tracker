@@ -10,11 +10,25 @@ import "@/styles/jobtrak.css";
  * dashboard. Skippable — the tracker still works with applications added by
  * hand, and the rail keeps offering the connect link afterwards.
  */
+/** YYYY-MM-DD, `days` before today, in UTC to match the server's validator. */
+function isoDaysAgo(days) {
+  return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+}
+
+// Mirrors DEFAULT_LOOKBACK_DAYS / MAX_LOOKBACK_DAYS in server/sync/startDate.js.
+// The server re-validates regardless — these only shape the picker.
+const DEFAULT_LOOKBACK_DAYS = 30;
+const MAX_LOOKBACK_DAYS = 730;
+
 export default function ConnectGmail() {
   const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [error, setError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  // How far back the first sync reads. Defaulted rather than left blank so
+  // the common case is one click, but a long search isn't silently truncated
+  // to 30 days the way it used to be.
+  const [startDate, setStartDate] = useState(() => isoDaysAgo(DEFAULT_LOOKBACK_DAYS));
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +68,7 @@ export default function ConnectGmail() {
     setRedirecting(true);
     setError("");
     try {
-      const { url } = await api("/auth/gmail/connect");
+      const { url } = await api(`/auth/gmail/connect?since=${encodeURIComponent(startDate)}`);
       window.location.href = url;
     } catch (err) {
       if (err.unauthorized) {
@@ -93,8 +107,23 @@ export default function ConnectGmail() {
           <div className="jt-step">
             <span className="jt-step-num">2</span>
             <span>
-              We scan the last 30 days for application mail, then keep up twice a day. Nothing is
-              ever sent from your account.
+              We read application mail from your chosen start date onwards, then keep up twice a
+              day. Nothing is ever sent from your account.
+              <label className="jt-since-field">
+                <span className="jt-label">Read mail from</span>
+                <input
+                  type="date"
+                  className="jt-input"
+                  value={startDate}
+                  min={isoDaysAgo(MAX_LOOKBACK_DAYS)}
+                  max={isoDaysAgo(0)}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  disabled={redirecting}
+                />
+              </label>
+              <span className="jt-hint">
+                Pick the date you started applying. Earlier means a longer first sync.
+              </span>
             </span>
           </div>
           <div className="jt-step">
