@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const sql = require('../db');
-const { createOAuthClient, SCOPES } = require('../gmailAuth');
+const { createOAuthClient, revokeRefreshToken, SCOPES } = require('../gmailAuth');
 const { encrypt } = require('../tokenCrypto');
+const { getConnection, deleteConnection } = require('../sync/gmailConnections');
 const { normalizeStartDate, DEFAULT_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS } = require('../sync/startDate');
 
 // CLIENT_ORIGIN is a comma-separated allow-list for CORS; the OAuth
@@ -115,4 +116,29 @@ const getGmailStatus = async (req, res) => {
   }
 };
 
-module.exports = { startGmailConnect, handleGmailCallback, getGmailStatus };
+// Revokes the grant at Google (so it drops off the user's
+// myaccount.google.com/permissions list, not just our own DB) and forgets
+// the connection locally. Revocation is best-effort — a token Google
+// already considers dead must not block the user from clearing our side.
+const disconnectGmail = async (req, res) => {
+  try {
+    const connection = await getConnection(req.user.id);
+    if (!connection) {
+      return res.status(400).json({ error: 'No Gmail account connected.' });
+    }
+
+    try {
+      await revokeRefreshToken(connection.refreshToken);
+    } catch (err) {
+      console.warn(`Gmail disconnect: revoke failed for user ${req.user.id}:`, err.message);
+    }
+
+    await deleteConnection(req.user.id);
+    res.json({ disconnected: true });
+  } catch (error) {
+    console.error('Gmail disconnect failed:', error);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+};
+
+module.exports = { startGmailConnect, handleGmailCallback, getGmailStatus, disconnectGmail };

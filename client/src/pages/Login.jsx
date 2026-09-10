@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/dashboard/icons";
 import VineDivider from "@/components/VineDivider";
-import { api, setToken } from "@/lib/api";
+import { api, markAuthed } from "@/lib/api";
 import "@/styles/jobtrak.css";
 
 export default function Login() {
@@ -47,17 +47,15 @@ export default function Login() {
       if (isRegister) {
         await api("/auth/register", {
           method: "POST",
-          auth: false,
           body: { email: email.trim(), password },
         });
       }
 
-      const { token } = await api("/auth/login", {
+      await api("/auth/login", {
         method: "POST",
-        auth: false,
         body: { email: email.trim(), password },
       });
-      setToken(token);
+      markAuthed();
       await continueAfterAuth();
     } catch (err) {
       if (err.status === 409) {

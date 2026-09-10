@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
+const cookieParser = require('cookie-parser')
 const jobsRouter = require('./routes/jobsRouter')
 const authRouter = require('./routes/authRouter')
 const gmailRouter = require('./routes/gmailRouter')
@@ -17,8 +18,13 @@ const allowedOrigins = [
   "https://job-tracker-frontend-ten-eta.vercel.app",
   ...(process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",") : []),
 ];
-app.use(cors({ origin: allowedOrigins }));
+// credentials: true is required for the browser to send/accept the
+// httpOnly session cookie across the frontend/backend origin split — it
+// also means `origin` can never be "*", which the explicit allowlist above
+// already guarantees.
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 const PORT = 8000
 

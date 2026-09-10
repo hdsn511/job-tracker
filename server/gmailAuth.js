@@ -33,4 +33,16 @@ function getGmailClient(refreshToken) {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
-module.exports = { createOAuthClient, getGmailClient, SCOPES };
+/**
+ * Revokes a refresh token at Google so the grant disappears from the
+ * user's "third-party access" list, not just from our own database.
+ * Best-effort: a token Google already considers invalid (expired,
+ * previously revoked by the user directly) throws, which the caller
+ * should swallow rather than block the local disconnect/delete on.
+ */
+async function revokeRefreshToken(refreshToken) {
+  const oauth2Client = createOAuthClient();
+  await oauth2Client.revokeToken(refreshToken);
+}
+
+module.exports = { createOAuthClient, getGmailClient, revokeRefreshToken, SCOPES };

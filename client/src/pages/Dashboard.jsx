@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ApplicationModal from "@/components/ApplicationModal";
+import DeleteAccountModal from "@/components/DeleteAccountModal";
 import ActivityRow from "@/components/dashboard/ActivityRow";
 import ApplicationList from "@/components/dashboard/ApplicationList";
 import DetailPanel from "@/components/dashboard/DetailPanel";
 import FunnelPanel from "@/components/dashboard/FunnelPanel";
 import Rail from "@/components/dashboard/Rail";
 import VineDivider from "@/components/VineDivider";
-import { api, clearToken } from "@/lib/api";
+import { api, clearAuthed } from "@/lib/api";
 import {
   formatLong,
   parsedEventCount,
@@ -39,11 +40,12 @@ export default function Dashboard() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const handleFailure = useCallback(
     (error) => {
       if (error?.unauthorized) {
-        clearToken();
+        clearAuthed();
         navigate("/", { replace: true });
         return;
       }
@@ -215,8 +217,33 @@ export default function Dashboard() {
 
   const handleConnectGmail = () => navigate("/connect");
 
-  const handleLogout = () => {
-    clearToken();
+  const handleDisconnectGmail = async () => {
+    if (!window.confirm("Disconnect Gmail? You can reconnect any time.")) return;
+    try {
+      await api("/auth/gmail/disconnect", { method: "DELETE" });
+      await loadGmail();
+      setNotice({ tone: "good", text: "Gmail disconnected." });
+    } catch (error) {
+      handleFailure(error);
+    }
+  };
+
+  const handleLogout = async () => {
+    // Best-effort: even if the network call fails, drop the local hint and
+    // send the user back — a stale cookie with no local "authed" flag just
+    // means the next request 401s and they're bounced to login anyway.
+    try {
+      await api("/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    clearAuthed();
+    navigate("/", { replace: true });
+  };
+
+  const confirmDeleteAccount = async (password) => {
+    await api("/auth/account", { method: "DELETE", body: { password } });
+    clearAuthed();
     navigate("/", { replace: true });
   };
 
@@ -233,7 +260,9 @@ export default function Dashboard() {
           syncing={syncing}
           onResync={handleResync}
           onConnectGmail={handleConnectGmail}
+          onDisconnectGmail={handleDisconnectGmail}
           onLogout={handleLogout}
+          onDeleteAccount={() => setDeleteAccountOpen(true)}
           onAddApplication={() => {
             setEditing(null);
             setModalOpen(true);
@@ -344,6 +373,12 @@ export default function Dashboard() {
           setEditing(null);
         }}
         onSave={handleSave}
+      />
+
+      <DeleteAccountModal
+        open={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+        onConfirm={confirmDeleteAccount}
       />
     </div>
   );

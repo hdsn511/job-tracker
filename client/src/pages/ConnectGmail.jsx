@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MailIcon, Wordmark } from "@/components/dashboard/icons";
 import VineDivider from "@/components/VineDivider";
-import { api, clearToken } from "@/lib/api";
+import { api, clearAuthed } from "@/lib/api";
 import "@/styles/jobtrak.css";
 
 /**
@@ -44,7 +44,7 @@ export default function ConnectGmail() {
       .catch((err) => {
         if (cancelled) return;
         if (err.unauthorized) {
-          clearToken();
+          clearAuthed();
           navigate("/", { replace: true });
         } else {
           setError(err.message);
@@ -72,7 +72,7 @@ export default function ConnectGmail() {
       window.location.href = url;
     } catch (err) {
       if (err.unauthorized) {
-        clearToken();
+        clearAuthed();
         navigate("/", { replace: true });
         return;
       }

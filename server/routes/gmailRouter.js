@@ -12,6 +12,8 @@ gmailRouter.get('/callback', gmailController.handleGmailCallback);
 
 gmailRouter.get('/status', auth, gmailController.getGmailStatus);
 
+gmailRouter.delete('/disconnect', auth, gmailController.disconnectGmail);
+
 gmailRouter.post('/sync', auth, syncController.runSync);
 
 module.exports = gmailRouter;

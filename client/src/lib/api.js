@@ -1,15 +1,23 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export function getToken() {
-  return localStorage.getItem("token");
+const AUTH_FLAG = "jt_authed";
+
+// The real session lives in an httpOnly cookie the browser manages —
+// client JS never sees it, so it can't be stolen via XSS the way a
+// localStorage bearer token could. This flag is only a UI hint for
+// routing (ProtectedRoute) and grants nothing by itself: every request is
+// still authorized server-side by the cookie, so a stale/forged flag just
+// means a 401 the caller already handles, not real access.
+export function isAuthed() {
+  return localStorage.getItem(AUTH_FLAG) === "1";
 }
 
-export function setToken(token) {
-  localStorage.setItem("token", token);
+export function markAuthed() {
+  localStorage.setItem(AUTH_FLAG, "1");
 }
 
-export function clearToken() {
-  localStorage.removeItem("token");
+export function clearAuthed() {
+  localStorage.removeItem(AUTH_FLAG);
 }
 
 export class ApiError extends Error {
@@ -22,24 +30,22 @@ export class ApiError extends Error {
 }
 
 /**
- * Thin wrapper over fetch: attaches the bearer token, JSON-encodes the
+ * Thin wrapper over fetch: sends the session cookie, JSON-encodes the
  * body, and turns non-2xx responses into ApiError so callers can `catch`
- * instead of checking `res.ok` everywhere. A 401 means the JWT expired —
- * the caller drops the token and sends the user back to the login screen.
+ * instead of checking `res.ok` everywhere. A 401 means the session cookie
+ * is missing/expired — the caller clears the local auth flag and sends the
+ * user back to the login screen.
  */
-export async function api(path, { method = "GET", body, auth = true } = {}) {
+export async function api(path, { method = "GET", body } = {}) {
   const headers = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (auth) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
 
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers,
+      credentials: "include",
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

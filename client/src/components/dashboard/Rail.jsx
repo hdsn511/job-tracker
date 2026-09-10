@@ -19,7 +19,9 @@ export default function Rail({
   syncing,
   onResync,
   onConnectGmail,
+  onDisconnectGmail,
   onLogout,
+  onDeleteAccount,
   onAddApplication,
 }) {
   return (
@@ -54,11 +56,16 @@ export default function Rail({
               {gmailConnected ? "Inbox sync on" : "Inbox sync off"}
             </div>
             {gmailConnected ? (
-              <div className="jt-sync-meta">
-                {syncLabel}
-                <br />
-                {parsedCount} events parsed
-              </div>
+              <>
+                <div className="jt-sync-meta">
+                  {syncLabel}
+                  <br />
+                  {parsedCount} events parsed
+                </div>
+                <button type="button" className="jt-sync-link" onClick={onDisconnectGmail}>
+                  Disconnect Gmail
+                </button>
+              </>
             ) : (
               <>
                 <div className="jt-sync-meta">
@@ -86,6 +93,10 @@ export default function Rail({
               Log out
             </button>
           </div>
+
+          <button type="button" className="jt-btn-danger-text" onClick={onDeleteAccount}>
+            Delete account
+          </button>
         </div>
       </aside>
     </div>

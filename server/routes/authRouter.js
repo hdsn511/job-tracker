@@ -1,7 +1,8 @@
 const express = require('express');
 const { body } = require('express-validator');
 const rateLimit = require('express-rate-limit');
-const { handleRegister, handleLogin } = require('../controllers/authController');
+const auth = require('../middleware/authMiddleware');
+const { handleRegister, handleLogin, handleLogout, handleDeleteAccount } = require('../controllers/authController');
 
 const authRouter = express.Router();
 
@@ -24,5 +25,11 @@ authRouter.post('/login', authLimiter, [
     body('email').isEmail().normalizeEmail(),
     body('password').notEmpty()
 ], handleLogin);
+
+authRouter.post('/logout', handleLogout);
+
+authRouter.delete('/account', authLimiter, auth, [
+    body('password').notEmpty(),
+], handleDeleteAccount);
 
 module.exports = authRouter;

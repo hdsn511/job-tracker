@@ -62,6 +62,13 @@ async function setLastSyncedAt(userId, epochSeconds) {
   await sql`update gmail_connections set last_synced_at = ${epochSeconds} where user_id = ${userId}`;
 }
 
+/** Drops the stored connection — the caller is responsible for revoking the
+ * refresh token at Google first, since once this row is gone the token
+ * can't be read back to revoke it. */
+async function deleteConnection(userId) {
+  await sql`delete from gmail_connections where user_id = ${userId}`;
+}
+
 module.exports = {
   getUserIdByEmail,
   saveGmailConnection,
@@ -69,5 +76,6 @@ module.exports = {
   getConnection,
   setLastSyncedAt,
   setSyncStartDate,
+  deleteConnection,
   toConnection,
 };

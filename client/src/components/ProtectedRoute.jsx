@@ -1,8 +1,8 @@
 import { Navigate } from "react-router-dom";
-import { getToken } from "@/lib/api";
+import { isAuthed } from "@/lib/api";
 
 export default function ProtectedRoute({ children }) {
-  if (!getToken()) {
+  if (!isAuthed()) {
     return <Navigate to="/" replace />;
   }
   return children;
