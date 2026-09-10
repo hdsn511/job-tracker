@@ -3,7 +3,7 @@ const { listCandidateMessageIds, getMessage } = require('./gmail');
 const { resolveMessage } = require('./resolve');
 const { listConnections, setLastSyncedAt } = require('./gmailConnections');
 const { loadCached, saveClassification } = require('./classificationCache');
-const { getLlmStats, resetLlmStats } = require('./llm');
+const { getLlmStats, resetLlmStats, activeProvider, activeModel } = require('./llm');
 const { getExistingJobs, upsertJobFromMessages, groupMessages } = require('./jobs');
 
 // Used when a connection has no explicit start date — the historical default.
@@ -148,6 +148,14 @@ async function syncConnection(
   }
 
   const llm = getLlmStats();
+  const provider = activeProvider();
+  // Surfaced so the app (and whoever's reading the resync response) can see
+  // which provider actually ran without having to go dig through Vercel's
+  // environment-variable dashboard — env vars set locally and what's set on
+  // the deployed backend are two different things, and this is the one
+  // place they're both provable from the same run.
+  summary.llmProvider = provider ? provider.name : null;
+  summary.llmModel = provider ? activeModel() : null;
   summary.llmAttempted = llm.attempted;
   summary.llmFailed = llm.failed;
   summary.llmNotConfigured = llm.notConfigured;

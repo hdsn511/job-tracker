@@ -198,15 +198,46 @@ export default function Dashboard() {
     }
   };
 
+  /** e.g. "12 new, 3 updated (via gemini)" / "... (no LLM configured — rules only)" */
+  const syncSummaryText = (summary) => {
+    const counts = `${summary.inserted} new, ${summary.updated} updated`;
+    const engine = summary.llmProvider
+      ? `via ${summary.llmProvider}`
+      : "no LLM configured — rules only";
+    return `${counts} (${engine})`;
+  };
+
   const handleResync = async () => {
     setSyncing(true);
     setNotice(null);
     try {
       const { summary } = await api("/auth/gmail/sync", { method: "POST" });
       await Promise.all([loadJobs(), loadGmail()]);
+      setNotice({ tone: "good", text: `Sync done — ${syncSummaryText(summary)}.` });
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // The sync is always a re-read of the whole window back to this date, not
+  // "since last time" — so narrowing/widening it here takes effect on the
+  // very next sync, without disconnecting and reconnecting. It does NOT
+  // retroactively remove jobs already created from messages now outside a
+  // narrowed window; those stay until archived or deleted by hand.
+  const handleChangeSyncStart = async (newDate) => {
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const { summary } = await api("/auth/gmail/sync", {
+        method: "POST",
+        body: { startDate: newDate },
+      });
+      await Promise.all([loadJobs(), loadGmail()]);
       setNotice({
         tone: "good",
-        text: `Sync done — ${summary.inserted} new, ${summary.updated} updated.`,
+        text: `Sync window updated to ${newDate} — ${syncSummaryText(summary)}.`,
       });
     } catch (error) {
       handleFailure(error);
@@ -256,9 +287,12 @@ export default function Dashboard() {
           onFilterChange={setFilter}
           gmailConnected={gmail.connected}
           syncLabel={relativeTime(gmail.lastSyncedAt)}
+          syncStartDate={gmail.syncStartDate}
+          maxLookbackDays={gmail.maxLookbackDays}
           parsedCount={parsedEventCount(apps)}
           syncing={syncing}
           onResync={handleResync}
+          onChangeSyncStart={handleChangeSyncStart}
           onConnectGmail={handleConnectGmail}
           onDisconnectGmail={handleDisconnectGmail}
           onLogout={handleLogout}

@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import { STAGES } from "@/lib/applications";
 import { LogOutIcon, RefreshIcon, Wordmark } from "./icons";
+
+/** YYYY-MM-DD, `days` before today — mirrors the same helper in ConnectGmail. */
+function isoDaysAgo(days) {
+  return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+}
 
 /**
  * Left rail: identity, the stage filter, inbox status, and the account
@@ -15,15 +21,29 @@ export default function Rail({
   onFilterChange,
   gmailConnected,
   syncLabel,
+  syncStartDate,
+  maxLookbackDays = 730,
   parsedCount,
   syncing,
   onResync,
+  onChangeSyncStart,
   onConnectGmail,
   onDisconnectGmail,
   onLogout,
   onDeleteAccount,
   onAddApplication,
 }) {
+  // The sync is a re-read of the whole window every time, not "since last
+  // run" — so this is the one control that lets someone narrow/widen it
+  // without disconnecting and reconnecting.
+  const [startInput, setStartInput] = useState(syncStartDate || "");
+
+  useEffect(() => {
+    setStartInput(syncStartDate || "");
+  }, [syncStartDate]);
+
+  const startChanged = Boolean(startInput) && startInput !== syncStartDate;
+
   return (
     <div className="jt-rail-col">
       <aside className="jt-rail">
@@ -62,9 +82,41 @@ export default function Rail({
                   <br />
                   {parsedCount} events parsed
                 </div>
-                <button type="button" className="jt-sync-link" onClick={onDisconnectGmail}>
-                  Disconnect Gmail
-                </button>
+
+                <label className="jt-since-field">
+                  <span className="jt-label">Syncing since</span>
+                  <input
+                    type="date"
+                    className="jt-input"
+                    value={startInput}
+                    min={isoDaysAgo(maxLookbackDays)}
+                    max={isoDaysAgo(0)}
+                    onChange={(event) => setStartInput(event.target.value)}
+                    disabled={syncing}
+                  />
+                </label>
+                {startChanged ? (
+                  <span className="jt-hint">
+                    Takes effect on the next sync. Applications already tracked from before this
+                    date aren&rsquo;t removed — archive or delete those by hand.
+                  </span>
+                ) : null}
+
+                <div className="jt-rail-actions">
+                  {startChanged ? (
+                    <button
+                      type="button"
+                      className="jt-sync-link"
+                      onClick={() => onChangeSyncStart(startInput)}
+                      disabled={syncing}
+                    >
+                      {syncing ? "Updating…" : "Save & resync"}
+                    </button>
+                  ) : null}
+                  <button type="button" className="jt-sync-link" onClick={onDisconnectGmail}>
+                    Disconnect Gmail
+                  </button>
+                </div>
               </>
             ) : (
               <>
