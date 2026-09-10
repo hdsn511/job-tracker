@@ -12,7 +12,17 @@ function toConnection(row) {
     lastSyncedAt: row.last_synced_at === null ? null : Number(row.last_synced_at),
     // NULL means "use the 30-day default", which is how every connection made
     // before this column existed behaves.
-    syncStartDate: row.sync_start_date ? String(row.sync_start_date).slice(0, 10) : null,
+    //
+    // The driver hands back a `date` column as a JS Date, not a string --
+    // String(date) is "Tue Aug 11 2026 00:00:00 GMT+..." (no year in the
+    // first 10 chars), and slicing that silently drops the year, which
+    // downstream turned into `new Date("Tue Aug 11")` parsing as 2001. Go
+    // through toISOString() for a Date so the result is always YYYY-MM-DD.
+    syncStartDate: row.sync_start_date
+      ? (row.sync_start_date instanceof Date
+          ? row.sync_start_date.toISOString().slice(0, 10)
+          : String(row.sync_start_date).slice(0, 10))
+      : null,
   };
 }
 
