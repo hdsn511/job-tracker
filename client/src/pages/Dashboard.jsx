@@ -9,6 +9,7 @@ import Rail from "@/components/dashboard/Rail";
 import VineDivider from "@/components/VineDivider";
 import { api, clearToken } from "@/lib/api";
 import {
+  formatLong,
   parsedEventCount,
   relativeTime,
   sortByDateDesc,
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
+  const [dayFilter, setDayFilter] = useState(null); // ISO date, from the calendar
   const [selectedId, setSelectedId] = useState(null);
   const [gmail, setGmail] = useState({ connected: false, lastSyncedAt: null });
   const [syncing, setSyncing] = useState(false);
@@ -91,10 +93,13 @@ export default function Dashboard() {
   }, []);
 
   const counts = useMemo(() => stageCounts(apps), [apps]);
-  const visible = useMemo(
-    () => (filter === "All" ? apps : apps.filter((app) => app.status === filter)),
-    [apps, filter],
-  );
+
+  // The stage filter and the calendar day compose, so picking a day narrows
+  // whatever stage is already showing rather than silently resetting it.
+  const visible = useMemo(() => {
+    const byStage = filter === "All" ? apps : apps.filter((app) => app.status === filter);
+    return dayFilter ? byStage.filter((app) => app.date === dayFilter) : byStage;
+  }, [apps, filter, dayFilter]);
 
   // Keep a valid selection as the filter narrows or rows come and go.
   useEffect(() => {
@@ -177,7 +182,9 @@ export default function Dashboard() {
         });
         const created = toApplication(row);
         setApps((current) => sortByDateDesc([created, ...current]));
+        // Clear both filters, or a new row can land outside the current view.
         setFilter("All");
+        setDayFilter(null);
         setSelectedId(created.id);
       }
       setModalOpen(false);
@@ -257,11 +264,23 @@ export default function Dashboard() {
             <FunnelPanel apps={apps} />
           </div>
 
-          <ActivityRow apps={apps} />
+          <ActivityRow apps={apps} selectedDate={dayFilter} onSelectDate={setDayFilter} />
 
           <div className="jt-section-rule">
             <VineDivider />
           </div>
+
+          {dayFilter ? (
+            <div className="jt-filter-bar">
+              <span>
+                Showing <strong>{formatLong(dayFilter)}</strong> &middot; {visible.length}{" "}
+                {visible.length === 1 ? "application" : "applications"}
+              </span>
+              <button type="button" className="jt-filter-clear" onClick={() => setDayFilter(null)}>
+                Show all
+              </button>
+            </div>
+          ) : null}
 
           <div className="jt-body">
             <ApplicationList
@@ -273,12 +292,18 @@ export default function Dashboard() {
                   ? { title: "Loading applications…", note: "" }
                   : apps.length
                     ? {
-                        title: (
+                        title: dayFilter ? (
+                          <>
+                            Nothing on <em>{formatLong(dayFilter)}</em>
+                          </>
+                        ) : (
                           <>
                             No <em>{filter.toLowerCase()}</em> applications
                           </>
                         ),
-                        note: "Pick another stage in the rail to see the rest of the pipeline.",
+                        note: dayFilter
+                          ? "No applications at this stage were sent on that day."
+                          : "Pick another stage in the rail to see the rest of the pipeline.",
                       }
                     : {
                         title: (

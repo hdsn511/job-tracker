@@ -626,18 +626,59 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
 }
 
 .jt-calendar-cell {
+  position: relative;
   width: 15px;
   height: 15px;
+  padding: 0;
+  border: none;
   border-radius: 4px;
-  transition: transform var(--jt-duration-fast) var(--jt-ease);
+  transition: outline-color var(--jt-duration-fast) var(--jt-ease);
+  outline: 2px solid transparent;
+  outline-offset: 1px;
 }
 
 .jt-calendar-cell.is-today {
-  box-shadow: inset 0 0 0 1px var(--jt-terracotta) !important;
+  box-shadow: inset 0 0 0 1px var(--jt-clay) !important;
 }
 
-.jt-calendar-cell:hover {
-  transform: scale(1.2);
+.jt-calendar-cell.is-clickable {
+  cursor: pointer;
+}
+
+.jt-calendar-cell.is-clickable:hover {
+  outline-color: var(--jt-border-sage);
+}
+
+.jt-calendar-cell.is-selected {
+  outline-color: var(--jt-terracotta);
+}
+
+/* Tooltip. The cell itself must not scale on hover — the label is a
+   pseudo-element of the cell and would be scaled with it. */
+.jt-calendar-cell::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: var(--jt-radius-pill);
+  background: var(--jt-forest);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: var(--jt-shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-calendar-cell:hover::after,
+.jt-calendar-cell:focus-visible::after {
+  opacity: 1;
 }
 
 .jt-calendar-foot {
@@ -726,6 +767,50 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
 .jt-section-rule {
   flex: none;
   padding: 0 26px 4px 26px;
+}
+
+/* Only rendered while a day is picked out of the calendar; it is the way
+   back to the whole list. */
+.jt-filter-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 26px;
+  background: var(--jt-surface-alt);
+  border-top: 1px solid var(--jt-border);
+  border-bottom: 1px solid var(--jt-border);
+  font-size: 13px;
+  color: var(--jt-ink-2);
+}
+
+.jt-filter-bar strong {
+  font-weight: 600;
+  color: var(--jt-ink);
+}
+
+.jt-filter-clear {
+  flex: none;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--jt-ink-terracotta);
+  background: transparent;
+  border: 1px solid rgba(194, 123, 102, 0.45);
+  border-radius: var(--jt-radius-pill);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition:
+    background-color var(--jt-duration-fast) var(--jt-ease),
+    border-color var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-filter-clear:hover {
+  border-color: var(--jt-terracotta);
+  background: rgba(194, 123, 102, 0.1);
 }
 
 /* Small print inside the detail panel — the auth screens' 15px body copy
@@ -1351,7 +1436,8 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
 
   .jt-row,
   .jt-banner,
-  .jt-section-rule {
+  .jt-section-rule,
+  .jt-filter-bar {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -1396,8 +1482,7 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   }
 
   .jt-stat:hover,
-  .jt-btn-panel:hover:not(:disabled),
-  .jt-calendar-cell:hover {
+  .jt-btn-panel:hover:not(:disabled) {
     transform: none;
   }
 }

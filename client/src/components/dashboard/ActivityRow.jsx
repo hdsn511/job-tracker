@@ -4,8 +4,12 @@ import { CAL_SHADES, WEEKDAY_INITIALS, buildCalendar, headlineStats } from "@/li
 /**
  * The month heat grid plus the four headline numbers — a reference band
  * above the application list, so it stays deliberately short.
+ *
+ * Days with at least one application are buttons: clicking one narrows the
+ * list to that day, clicking it again clears it. Empty and future days stay
+ * inert, since filtering to them could only ever produce an empty list.
  */
-export default function ActivityRow({ apps }) {
+export default function ActivityRow({ apps, selectedDate, onSelectDate }) {
   const calendar = useMemo(() => buildCalendar(apps), [apps]);
   const stats = useMemo(() => headlineStats(apps), [apps]);
 
@@ -34,14 +38,37 @@ export default function ActivityRow({ apps }) {
           {Array.from({ length: calendar.leading }, (_, index) => (
             <span key={`pad-${index}`} className="jt-calendar-pad" />
           ))}
-          {calendar.cells.map((cell) => (
-            <div
-              key={cell.iso}
-              className={`jt-calendar-cell${cell.today ? " is-today" : ""}`}
-              title={cell.tip}
-              style={{ background: cell.background, boxShadow: cell.ring }}
-            />
-          ))}
+
+          {calendar.cells.map((cell) => {
+            const selected = cell.iso === selectedDate;
+            const className = [
+              "jt-calendar-cell",
+              cell.today ? "is-today" : "",
+              selected ? "is-selected" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const style = { background: cell.background, boxShadow: cell.ring };
+
+            if (!cell.n) {
+              return (
+                <span key={cell.iso} className={className} data-tip={cell.tip} style={style} />
+              );
+            }
+
+            return (
+              <button
+                key={cell.iso}
+                type="button"
+                className={`${className} is-clickable`}
+                data-tip={cell.tip}
+                style={style}
+                aria-pressed={selected}
+                aria-label={`${cell.tip}. Filter the list to this day.`}
+                onClick={() => onSelectDate(selected ? null : cell.iso)}
+              />
+            );
+          })}
         </div>
 
         <div className="jt-calendar-foot">
