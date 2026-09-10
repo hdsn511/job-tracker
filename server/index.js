@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser')
 const jobsRouter = require('./routes/jobsRouter')
 const authRouter = require('./routes/authRouter')
 const gmailRouter = require('./routes/gmailRouter')
+const inboundRouter = require('./routes/inboundRouter')
 
 const app = express();
 
@@ -31,6 +32,7 @@ const PORT = 8000
 app.use('/auth', authRouter)
 app.use('/jobs', jobsRouter)
 app.use('/auth/gmail', gmailRouter)
+app.use('/api/inbound', inboundRouter)
 
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 

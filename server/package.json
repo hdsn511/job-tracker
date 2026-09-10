@@ -9,6 +9,7 @@
     "sync": "node scripts/sync-all.js",
     "get-token": "node scripts/get-refresh-token.js",
     "migrate": "node scripts/migrate.js",
+    "test-filter-recall": "node scripts/test-filter-recall.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": [],
@@ -26,7 +27,8 @@
     "express-validator": "^7.3.1",
     "googleapis": "^178.1.1",
     "helmet": "^8.3.0",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import PaperGrainOverlay from "@/components/PaperGrainOverlay";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConnectGmail from "@/pages/ConnectGmail";
+import ForwardMail from "@/pages/ForwardMail";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import "./index.css";
@@ -20,6 +21,14 @@ createRoot(document.getElementById("root")).render(
           element={
             <ProtectedRoute>
               <ConnectGmail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/connect/forward"
+          element={
+            <ProtectedRoute>
+              <ForwardMail />
             </ProtectedRoute>
           }
         />

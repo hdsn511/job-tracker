@@ -145,6 +145,10 @@ export default function ConnectGmail() {
             {redirecting ? "Opening Google…" : "Connect Gmail"}
           </button>
 
+          <button type="button" className="jt-btn jt-btn-secondary" onClick={() => navigate("/connect/forward")}>
+            Or forward your mail instead
+          </button>
+
           <button
             type="button"
             className="jt-btn jt-btn-ghost"
