@@ -1,14 +1,25 @@
 require('dotenv').config({ quiet: true });
 
-// Scores the real LLM path against the checked-in inbox corpus.
+// Scores the real LLM path against the local inbox corpus.
 //
-// Not part of `npm test` — it needs GROQ_API_KEY and makes one network call
+// Not part of `npm test` — it needs a provider key and makes one network call
 // per fixture. Run it after changing the prompt to see whether accuracy moved.
 //
 //   node scripts/score-llm.js
+//   LLM_PROVIDER=gemini node scripts/score-llm.js
+//
+// The corpus is gitignored (it names the mailbox owner and every company they
+// applied to), so build one first with `node scripts/build-corpus.js`.
 
 const { resolveMessage } = require('../sync/resolve');
-const corpus = require('../test/fixtures/inbox-corpus.json');
+
+let corpus;
+try {
+  corpus = require('../test/fixtures/inbox-corpus.json');
+} catch {
+  console.error('No corpus at test/fixtures/inbox-corpus.json — build one with `node scripts/build-corpus.js`.');
+  process.exit(1);
+}
 
 const pad = (s, n) => String(s).slice(0, n).padEnd(n);
 

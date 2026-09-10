@@ -40,10 +40,61 @@ classify/upsert behaviour.
 
    Currently pinned to **Groq** (`openai/gpt-oss-120b`). Its free tier caps
    at 8k tokens/minute — roughly 11 classifications a minute, which is the
-   throughput ceiling to watch as user count grows, not the price. Gemini's
-   adapter is written and tested but its AI Studio project has no credits;
-   note that Google Cloud trial credits live on Vertex AI, a different
-   endpoint from the `generativelanguage.googleapis.com` one used here.
+   throughput ceiling to watch as user count grows, not the price.
+
+   Gemini's adapter works against a live key — the failure is quota, not
+   code. The AI Studio free tier allows **20 `generateContent` requests per
+   day**, per project, per model (quotaId
+   `GenerateRequestsPerDayPerProjectPerModel-FreeTier`). That is a daily cap,
+   not a rate limit: pacing and backoff cannot widen it, and the "Please
+   retry in ~53s" hint the 429 carries is misleading — the window is midnight
+   Pacific. The prose is identical for per-minute and per-day violations, so
+   `isDailyQuota()` reads the structured `quotaId` and fails straight to the
+   rules instead of sleeping the retry budget.
+
+   Free-tier quota is per MODEL, though, and that is the way through:
+   `gemini-3.5-flash-lite` gets **500 requests/day** where `gemini-3.6-flash`
+   gets 20. Scoring Gemini needs no billing at all, just the smaller model:
+
+       LLM_PROVIDER=gemini GEMINI_MODEL=gemini-3.5-flash-lite          node scripts/score-llm.js
+
+   Measured on the 29-fixture corpus (2026-09-09):
+
+   | | Groq `gpt-oss-120b` | Gemini `3.5-flash-lite` |
+   |---|---|---|
+   | Corpus score | 29/29 | 29/29 |
+   | Missing job title | 3/29 | 2/29 |
+   | Calls ok | 27/28 (1 failed) | 28/28 |
+   | Rate-limit pauses | 12 | 2 |
+   | Tokens in / out | 23915 / 4192 | 19018 / 689 |
+   | Free ceiling | 1000 req/day + 8k tokens/min | 500 req/day |
+
+   **The corpus is saturated — both are perfect, so it can no longer tell
+   these models apart.** Any further provider choice needs harder fixtures
+   (ambiguous recruiter mail, rescheduling, offers), not another run of this
+   one.
+
+   Groq stays the pin because it has the larger daily budget, not because it
+   is uncapped — it is not. Groq reports its real limits in response headers,
+   which is the only trustworthy source for them:
+
+       x-ratelimit-limit-requests: 1000      # per DAY
+       x-ratelimit-limit-tokens:   8000      # per MINUTE
+       x-ratelimit-remaining-requests: 829
+
+   So the free ceilings are 1000/day (Groq) and 500/day (Gemini flash-lite),
+   and a first-time backfill of a year's inbox can exhaust either. Gemini
+   flash-lite ran cleaner here (0 failed calls vs 1, 2 pauses vs 12).
+
+   Because both are day-capped, the useful next step is a **failover chain**
+   rather than a single pin: `isDailyQuota()` already detects terminal
+   exhaustion, so falling through to the next configured provider instead of
+   to the rules would give 1500 messages/day free from the two adapters that
+   already exist.
+
+   Still true and worth keeping: Google Cloud trial credits live on Vertex
+   AI, a different endpoint from the `generativelanguage.googleapis.com` one
+   used here, so those credits do not raise this limit.
 6. `classificationCache.js` stores the derived result per Gmail message id
    (never the raw body), so a re-read costs no LLM calls for mail already
    seen. A result produced while the LLM was erroring is deliberately NOT

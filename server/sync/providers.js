@@ -9,6 +9,7 @@
 //
 // Each adapter exposes:
 //   apiKeyEnv     env var holding its key
+//   requestsPerMinute  optional; free-tier request ceiling, paced by llm.js
 //   defaultModel  pinned; overridable per-provider via env
 //   buildRequest  ({ model, messages, schema, strict }) -> { url, headers, body }
 //   extractText   (responseJson) -> the model's raw text answer
@@ -91,8 +92,15 @@ const gemini = {
   apiKeyEnv: 'GEMINI_API_KEY',
   modelEnv: 'GEMINI_MODEL',
   defaultModel: 'gemini-3.6-flash',
+  // Free tier is 20 generateContent requests per DAY, per project, per model
+  // (quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier). Not a rate
+  // limit — no pacing or backoff can widen it, and the "retry in ~53s" hint
+  // the 429 carries is misleading: the window is midnight Pacific. A daily
+  // cap this small cannot classify a real inbox, so Gemini needs billing
+  // enabled on the AI Studio project before it is a usable backend.
+  dailyRequestLimit: 20,
 
-  buildRequest({ model, messages, schema, apiKey }) {
+  buildRequest({ model, messages, schema, apiKey, thinking = true }) {
     const { system, contents } = toGeminiContents(messages);
     return {
       url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -110,10 +118,12 @@ const gemini = {
           // a classification is unbounded. "low" is the floor that 3.x Flash
           // supports — "minimal" is rejected by 3.8 Flash.
           //
-          // If a future model rejects this field, llm.js retries once without
-          // it rather than failing the message; watch usage.thinking in the
-          // sync summary to confirm it is actually taking effect.
-          thinkingConfig: { thinkingLevel: 'low' },
+          // Not every model accepts the field (the Lite variants differ), so
+          // llm.js retries once with thinking:false when a 400 names it —
+          // otherwise an unsupported field reads as "the model is broken".
+          // Watch usage.thinking in the sync summary to confirm it is taking
+          // effect where it IS supported.
+          ...(thinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
         },
       },
     };
