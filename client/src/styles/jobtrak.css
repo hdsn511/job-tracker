@@ -496,7 +496,11 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   height: clamp(186px, 24vh, 246px);
   border: 1px solid var(--jt-border);
   border-radius: var(--jt-radius-card);
-  padding: 10px 16px 6px 16px;
+  /* 8px of side padding is what leaves exactly 944 of content at the
+     design width, so the flow fits without a horizontal scrollbar. The
+     drawing carries its own 116px margin, so the graphic never comes near
+     the card edge anyway. */
+  padding: 10px 8px 6px 8px;
   background: var(--jt-surface);
   box-shadow: var(--jt-shadow);
   overflow-x: auto;
@@ -821,11 +825,38 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   color: var(--jt-ink-3);
 }
 
+/* Two scrollbars on purpose: the page scrolls so the band above can be
+   pushed out of the way, and the list scrolls within the ten rows it caps
+   itself at. The cap is also what stops a long list from bidding for the
+   row's height — without it the list would set `.jt-body` as tall as its
+   content and never scroll. */
 .jt-list {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  max-height: calc(var(--jt-row-h) * var(--jt-list-rows));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--jt-border-strong) transparent;
+}
+
+.jt-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.jt-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jt-list::-webkit-scrollbar-thumb {
+  background: var(--jt-border-strong);
+  border-radius: var(--jt-radius-pill);
+  border: 3px solid var(--jt-surface);
+}
+
+.jt-list::-webkit-scrollbar-thumb:hover {
+  background: var(--jt-clay);
 }
 
 .jt-row {
@@ -1416,6 +1447,12 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   .jt-body {
     flex-direction: column;
     min-height: 0;
+  }
+
+  /* Stacked, an inner scroll region inside a scrolling page is a trap. */
+  .jt-list {
+    max-height: none;
+    overflow-y: visible;
   }
 
   .jt-detail {

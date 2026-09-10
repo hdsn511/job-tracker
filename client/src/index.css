@@ -61,6 +61,12 @@
   --jt-shadow-lg: 0 20px 40px -10px rgba(45, 58, 49, 0.05);
   --jt-shadow-xl: 0 25px 50px -12px rgba(45, 58, 49, 0.15);
 
+  /* One application row, measured: 15px padding top and bottom around a
+     two-line block of 16px display type over 13px body type. The list caps
+     its scroll viewport at a whole number of these. */
+  --jt-row-h: 76.5px;
+  --jt-list-rows: 10;
+
   /* radii */
   --jt-radius-card: 24px;
   --jt-radius-panel: 20px;
