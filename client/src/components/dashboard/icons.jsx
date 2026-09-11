@@ -73,6 +73,24 @@ export function UploadIcon({ size = 16 }) {
   );
 }
 
+export function SearchIcon({ size = 16 }) {
+  return (
+    <Stroke size={size}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </Stroke>
+  );
+}
+
+export function XIcon({ size = 14 }) {
+  return (
+    <Stroke size={size}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </Stroke>
+  );
+}
+
 /** The mark is an arch, the theme's one structural motif. */
 export function LogoMark() {
   return (

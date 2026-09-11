@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { STAGES } from "@/lib/applications";
-import { LogOutIcon, RefreshIcon, UploadIcon, Wordmark } from "./icons";
+import { LogOutIcon, RefreshIcon, SearchIcon, UploadIcon, Wordmark, XIcon } from "./icons";
 
 /** YYYY-MM-DD, `days` before today — mirrors the same helper in ConnectGmail. */
 function isoDaysAgo(days) {
@@ -33,6 +33,8 @@ export default function Rail({
   onLogout,
   onDeleteAccount,
   onAddApplication,
+  search,
+  onSearchChange,
 }) {
   // The sync is a re-read of the whole window every time, not "since last
   // run" — so this is the one control that lets someone narrow/widen it
@@ -49,6 +51,28 @@ export default function Rail({
     <div className="jt-rail-col">
       <aside className="jt-rail">
         <Wordmark />
+
+        <label className="jt-search-field">
+          <SearchIcon size={15} />
+          <input
+            type="text"
+            className="jt-search-input"
+            placeholder="Search company or title…"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            aria-label="Search applications by company or title"
+          />
+          {search ? (
+            <button
+              type="button"
+              className="jt-search-clear"
+              onClick={() => onSearchChange("")}
+              aria-label="Clear search"
+            >
+              <XIcon size={13} />
+            </button>
+          ) : null}
+        </label>
 
         <div className="jt-rail-group">
           <div className="jt-rail-heading">Stages</div>

@@ -1,13 +1,17 @@
-import { useMemo } from "react";
-import { SANKEY_BOX, buildSankey } from "@/lib/applications";
+import { SANKEY_BOX } from "@/lib/applications";
 
 /**
  * Sankey view of the pipeline. Ribbons and node bars are SVG; the labels
  * are HTML absolutely positioned over it, which renders noticeably crisper
  * than SVG <text> at this size.
+ *
+ * Purely presentational: `nodes`/`links` (from `buildSankey`) are computed
+ * by the caller, which is what lets a click here filter the same `apps`
+ * list the funnel was built from, and keeps that filter self-correcting --
+ * if an edit moves an app off the selected path, the path's own appIds
+ * recompute on the next render and the filter follows automatically.
  */
-export default function FunnelPanel({ apps }) {
-  const { nodes, links } = useMemo(() => buildSankey(apps), [apps]);
+export default function FunnelPanel({ nodes, links, selectedLinkId, onSelectLink }) {
   const { width, height, marginLeft, marginTop } = SANKEY_BOX;
 
   if (!nodes.length) {
@@ -34,9 +38,32 @@ export default function FunnelPanel({ apps }) {
           aria-label="Application pipeline flow"
         >
           <g transform={`translate(${marginLeft},${marginTop})`}>
-            {links.map((link) => (
-              <path key={link.id} d={link.d} fill={link.fill} opacity="0.45" />
-            ))}
+            {links.map((link) => {
+              const selected = link.id === selectedLinkId;
+              const dimmed = selectedLinkId && !selected;
+              return (
+                <path
+                  key={link.id}
+                  d={link.d}
+                  fill={link.fill}
+                  opacity={selected ? 0.75 : dimmed ? 0.18 : 0.45}
+                  className="jt-funnel-ribbon"
+                  onClick={() => onSelectLink(link)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected}
+                  aria-label={`${link.label}: ${link.value}. ${selected ? "Selected — activate to clear" : "Activate to filter the list to this path"}.`}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectLink(link);
+                    }
+                  }}
+                >
+                  <title>{`${link.label}: ${link.value}`}</title>
+                </path>
+              );
+            })}
             {nodes.map((node) => (
               <rect
                 key={node.id}
@@ -46,6 +73,7 @@ export default function FunnelPanel({ apps }) {
                 height={node.h}
                 rx="3"
                 fill={node.color}
+                opacity={selectedLinkId ? 0.55 : 1}
               />
             ))}
           </g>

@@ -265,44 +265,59 @@ export function furthestStageReached(app) {
  * thing you want to know when you look at a month of applications.
  */
 export function sankeyModel(apps) {
-  // Reduce each app to the only two facts the funnel needs, once, rather
-  // than re-walking every timeline inside each of the counts below.
+  // Reduce each app to the only facts the funnel needs, once, rather than
+  // re-walking every timeline inside each of the id-sets below. `id` is what
+  // lets a clicked node/ribbon turn back into an actual filtered app list.
   const depth = apps.map((app) => ({
+    id: app.id,
     rank: STAGE_RANK[furthestStageReached(app)],
     rejected: app.status === "Rejected",
   }));
-  const count = (predicate) => depth.filter(predicate).length;
+  const idsWhere = (predicate) => depth.filter(predicate).map((d) => d.id);
   const total = depth.length;
 
   // Stage bars are "reached this stage or better", so each one is the sum of
   // everything downstream and the ribbons balance by construction.
-  const assessment = count((d) => d.rank >= 2);
-  const interview = count((d) => d.rank >= 3);
+  const assessmentIds = idsWhere((d) => d.rank >= 2);
+  const interviewIds = idsWhere((d) => d.rank >= 3);
 
   // Live offers only. An offer that ended in a rejection is counted where it
   // died, not where it peaked — counting it in both places would draw it
   // twice and break the flow.
-  const offer = count((d) => d.rank >= 4 && !d.rejected);
+  const offerIds = idsWhere((d) => d.rank >= 4 && !d.rejected);
 
   // Still moving, split by which bar the ribbon leaves from. Both land in
   // the same "Still in loop" node: from the reader's side, an app you are
   // mid-OA on and one you are mid-loop on are both simply still alive.
-  const inAssessment = count((d) => d.rank === 2 && !d.rejected);
-  const inInterview = count((d) => d.rank === 3 && !d.rejected);
-  const inProgress = inAssessment + inInterview;
+  const inAssessmentIds = idsWhere((d) => d.rank === 2 && !d.rejected);
+  const inInterviewIds = idsWhere((d) => d.rank === 3 && !d.rejected);
+  const inProgressIds = [...inAssessmentIds, ...inInterviewIds];
 
   // Where the rejections happened. Offer-level rejections (a pulled offer, a
   // backed-out headcount) fold into the after-interview bucket: the strip is
   // five columns wide with no room for a sixth terminal, and every one of
   // them ran the interview gauntlet to get there anyway.
-  const rejectedAtApply = count((d) => d.rejected && d.rank === 1);
-  const rejectedAtAssessment = count((d) => d.rejected && d.rank === 2);
-  const rejectedAtInterview = count((d) => d.rejected && d.rank >= 3);
+  const rejectedAtApplyIds = idsWhere((d) => d.rejected && d.rank === 1);
+  const rejectedAtAssessmentIds = idsWhere((d) => d.rejected && d.rank === 2);
+  const rejectedAtInterviewIds = idsWhere((d) => d.rejected && d.rank >= 3);
 
   // "Reviewed" is anything that drew a real outcome: it either moved past
   // the application or came back a no. Everything else is silence.
-  const reviewed = assessment + rejectedAtApply;
-  const noResponse = Math.max(total - reviewed, 0);
+  const reviewedIds = [...assessmentIds, ...rejectedAtApplyIds];
+  const reviewedSet = new Set(reviewedIds);
+  const noResponseIds = depth.filter((d) => !reviewedSet.has(d.id)).map((d) => d.id);
+
+  const assessment = assessmentIds.length;
+  const interview = interviewIds.length;
+  const offer = offerIds.length;
+  const inAssessment = inAssessmentIds.length;
+  const inInterview = inInterviewIds.length;
+  const inProgress = inProgressIds.length;
+  const rejectedAtApply = rejectedAtApplyIds.length;
+  const rejectedAtAssessment = rejectedAtAssessmentIds.length;
+  const rejectedAtInterview = rejectedAtInterviewIds.length;
+  const reviewed = reviewedIds.length;
+  const noResponse = noResponseIds.length;
 
   // `color` fills the node bar and its ribbons; `ink` is the text-safe
   // version used for the value under the label. Hues run cool-to-warm left
@@ -312,10 +327,10 @@ export function sankeyModel(apps) {
   // to right, so a late rejection carries visibly more weight than an
   // instant no while still reading as the same kind of ending.
   const nodes = [
-    { id: "apps", col: 0, label: "Applications", value: total, color: "#7e8f73", ink: "#4f6047" },
-    { id: "rev", col: 1, label: "Reviewed", value: reviewed, color: "#8c9a84", ink: "#55694b" },
-    { id: "nores", col: 1, label: "No response", value: noResponse, color: "#c6beb1", ink: "#6b6255" },
-    { id: "asmt", col: 2, label: "Assessment", value: assessment, color: "#8fa2ae", ink: "#4a6a80" },
+    { id: "apps", col: 0, label: "Applications", value: total, color: "#7e8f73", ink: "#4f6047", appIds: depth.map((d) => d.id) },
+    { id: "rev", col: 1, label: "Reviewed", value: reviewed, color: "#8c9a84", ink: "#55694b", appIds: reviewedIds },
+    { id: "nores", col: 1, label: "No response", value: noResponse, color: "#c6beb1", ink: "#6b6255", appIds: noResponseIds },
+    { id: "asmt", col: 2, label: "Assessment", value: assessment, color: "#8fa2ae", ink: "#4a6a80", appIds: assessmentIds },
     {
       id: "rejApply",
       col: 2,
@@ -323,8 +338,9 @@ export function sankeyModel(apps) {
       value: rejectedAtApply,
       color: "#d3ab9f",
       ink: "#9e5540",
+      appIds: rejectedAtApplyIds,
     },
-    { id: "int", col: 3, label: "Interview", value: interview, color: "#6f8f7a", ink: "#3f6b57" },
+    { id: "int", col: 3, label: "Interview", value: interview, color: "#6f8f7a", ink: "#3f6b57", appIds: interviewIds },
     {
       id: "rejAsmt",
       col: 3,
@@ -332,9 +348,10 @@ export function sankeyModel(apps) {
       value: rejectedAtAssessment,
       color: "#cb9383",
       ink: "#9e5540",
+      appIds: rejectedAtAssessmentIds,
     },
-    { id: "prog", col: 4, label: "Still in loop", value: inProgress, color: "#c9a25c", ink: "#8a6224" },
-    { id: "off", col: 4, label: "Offer", value: offer, color: "#5c8a66", ink: "#3f6b4f" },
+    { id: "prog", col: 4, label: "Still in loop", value: inProgress, color: "#c9a25c", ink: "#8a6224", appIds: inProgressIds },
+    { id: "off", col: 4, label: "Offer", value: offer, color: "#5c8a66", ink: "#3f6b4f", appIds: offerIds },
     {
       id: "rejInt",
       col: 4,
@@ -342,22 +359,25 @@ export function sankeyModel(apps) {
       value: rejectedAtInterview,
       color: "#c27b66",
       ink: "#9e5540",
+      appIds: rejectedAtInterviewIds,
     },
   ];
 
   // Ordered to match the node stacks above: ribbons leave a bar in the same
   // order the targets are stacked, so nothing crosses that does not have to.
+  // The 4th tuple element is the app ids that ribbon represents -- what a
+  // click on it filters the list down to.
   const links = [
-    ["apps", "rev", reviewed],
-    ["apps", "nores", noResponse],
-    ["rev", "asmt", assessment],
-    ["rev", "rejApply", rejectedAtApply],
-    ["asmt", "int", interview],
-    ["asmt", "prog", inAssessment],
-    ["asmt", "rejAsmt", rejectedAtAssessment],
-    ["int", "prog", inInterview],
-    ["int", "off", offer],
-    ["int", "rejInt", rejectedAtInterview],
+    ["apps", "rev", reviewed, reviewedIds],
+    ["apps", "nores", noResponse, noResponseIds],
+    ["rev", "asmt", assessment, assessmentIds],
+    ["rev", "rejApply", rejectedAtApply, rejectedAtApplyIds],
+    ["asmt", "int", interview, interviewIds],
+    ["asmt", "prog", inAssessment, inAssessmentIds],
+    ["asmt", "rejAsmt", rejectedAtAssessment, rejectedAtAssessmentIds],
+    ["int", "prog", inInterview, inInterviewIds],
+    ["int", "off", offer, offerIds],
+    ["int", "rejInt", rejectedAtInterview, rejectedAtInterviewIds],
   ];
 
   return {
@@ -434,7 +454,7 @@ export function buildSankey(apps) {
     });
   }
 
-  const links = model.links.map(([sourceId, targetId, value]) => {
+  const links = model.links.map(([sourceId, targetId, value, appIds]) => {
     const source = placed[sourceId];
     const target = placed[targetId];
     const h = Math.max(value * k, 3);
@@ -447,7 +467,10 @@ export function buildSankey(apps) {
     const xm = (x0 + x1) / 2;
     return {
       id: `${sourceId}-${targetId}`,
+      label: `${source.label} → ${target.label}`,
       fill: target.color,
+      value,
+      appIds,
       d: `M${x0} ${y0} C${xm} ${y0}, ${xm} ${y1}, ${x1} ${y1} L${x1} ${y1 + h} C${xm} ${y1 + h}, ${xm} ${y0 + h}, ${x0} ${y0 + h} Z`,
     };
   });

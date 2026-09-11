@@ -310,6 +310,59 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   color: var(--jt-label);
 }
 
+/* Search box: icon-prefixed pill, distinct from the underline .jt-input
+   treatment since this one needs a leading icon and an optional trailing
+   clear button rather than sitting in a labelled field. */
+.jt-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--jt-border-strong);
+  border-radius: var(--jt-radius-pill);
+  background: var(--jt-surface-alt);
+  color: var(--jt-label);
+  transition: border-color var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-search-field:focus-within {
+  border-color: var(--jt-sage);
+  color: var(--jt-ink-2);
+}
+
+.jt-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--jt-ink);
+}
+
+.jt-search-input::placeholder {
+  color: #9aa094;
+}
+
+.jt-search-clear {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 2px;
+  color: var(--jt-label);
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.jt-search-clear:hover {
+  color: var(--jt-ink-terracotta);
+  background: rgba(194, 123, 102, 0.12);
+}
+
 .jt-rail-group {
   display: flex;
   flex-direction: column;
@@ -526,6 +579,24 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
      narrower than 944 these resolve to 0 instead of pushing the left edge
      out of the scroll range. */
   margin: 0 auto;
+}
+
+/* A ribbon is a path in a click-to-filter funnel, not decoration --
+   pointer + a focus ring so it reads as interactive both by mouse and
+   keyboard. Opacity itself is set inline per-link (selected/dimmed/default),
+   this just carries the affordances the inline style can't. */
+.jt-funnel-ribbon {
+  cursor: pointer;
+  transition: opacity var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-funnel-ribbon:hover {
+  opacity: 0.65 !important;
+}
+
+.jt-funnel-ribbon:focus-visible {
+  outline: 2px solid var(--jt-sage);
+  outline-offset: 1px;
 }
 
 /* Name and value on one line, over a translucent halo. The middle columns

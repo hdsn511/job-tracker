@@ -10,6 +10,7 @@ import Rail from "@/components/dashboard/Rail";
 import VineDivider from "@/components/VineDivider";
 import { api, clearAuthed } from "@/lib/api";
 import {
+  buildSankey,
   formatLong,
   parsedEventCount,
   relativeTime,
@@ -32,6 +33,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [dayFilter, setDayFilter] = useState(null); // ISO date, from the calendar
+  const [pathFilterId, setPathFilterId] = useState(null); // sankey link id, from the funnel
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [gmail, setGmail] = useState({ connected: false, lastSyncedAt: null });
   const [syncing, setSyncing] = useState(false);
@@ -96,12 +99,39 @@ export default function Dashboard() {
 
   const counts = useMemo(() => stageCounts(apps), [apps]);
 
-  // The stage filter and the calendar day compose, so picking a day narrows
-  // whatever stage is already showing rather than silently resetting it.
+  // Computed here rather than inside FunnelPanel so a ribbon click can
+  // filter this same `apps` list — see FunnelPanel's own comment on why
+  // that keeps the filter self-correcting as apps change.
+  const sankey = useMemo(() => buildSankey(apps), [apps]);
+  const pathFilterLink = pathFilterId ? sankey.links.find((link) => link.id === pathFilterId) : null;
+
+  // A path whose count dropped to zero (every app that was on it got
+  // edited off) stops existing in `sankey.links` entirely rather than
+  // lingering as an empty selection.
+  useEffect(() => {
+    if (pathFilterId && !pathFilterLink) setPathFilterId(null);
+  }, [pathFilterId, pathFilterLink]);
+
+  const handleSelectLink = (link) => setPathFilterId((current) => (current === link.id ? null : link.id));
+
+  // Stage, day, path and search all compose — each one narrows whatever the
+  // others already show rather than resetting them, the same way stage+day
+  // already did before path/search existed.
   const visible = useMemo(() => {
-    const byStage = filter === "All" ? apps : apps.filter((app) => app.status === filter);
-    return dayFilter ? byStage.filter((app) => app.date === dayFilter) : byStage;
-  }, [apps, filter, dayFilter]);
+    let result = filter === "All" ? apps : apps.filter((app) => app.status === filter);
+    if (dayFilter) result = result.filter((app) => app.date === dayFilter);
+    if (pathFilterLink) {
+      const ids = new Set(pathFilterLink.appIds);
+      result = result.filter((app) => ids.has(app.id));
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (app) => app.company.toLowerCase().includes(q) || app.title.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [apps, filter, dayFilter, pathFilterLink, search]);
 
   // Keep a valid selection as the filter narrows or rows come and go.
   useEffect(() => {
@@ -298,6 +328,8 @@ export default function Dashboard() {
           counts={counts}
           filter={filter}
           onFilterChange={setFilter}
+          search={search}
+          onSearchChange={setSearch}
           gmailConnected={gmail.connected}
           syncLabel={relativeTime(gmail.lastSyncedAt)}
           syncStartDate={gmail.syncStartDate}
@@ -342,7 +374,12 @@ export default function Dashboard() {
                 {counts.Interviewing} interviewing
               </span>
             </div>
-            <FunnelPanel apps={apps} />
+            <FunnelPanel
+              nodes={sankey.nodes}
+              links={sankey.links}
+              selectedLinkId={pathFilterId}
+              onSelectLink={handleSelectLink}
+            />
           </div>
 
           <ActivityRow apps={apps} selectedDate={dayFilter} onSelectDate={setDayFilter} />
@@ -350,6 +387,18 @@ export default function Dashboard() {
           <div className="jt-section-rule">
             <VineDivider />
           </div>
+
+          {pathFilterLink ? (
+            <div className="jt-filter-bar">
+              <span>
+                Showing <strong>{pathFilterLink.label}</strong> &middot; {visible.length}{" "}
+                {visible.length === 1 ? "application" : "applications"}
+              </span>
+              <button type="button" className="jt-filter-clear" onClick={() => setPathFilterId(null)}>
+                Show all
+              </button>
+            </div>
+          ) : null}
 
           {dayFilter ? (
             <div className="jt-filter-bar">
@@ -373,7 +422,15 @@ export default function Dashboard() {
                   ? { title: "Loading applications…", note: "" }
                   : apps.length
                     ? {
-                        title: dayFilter ? (
+                        title: search.trim() ? (
+                          <>
+                            No matches for <em>&ldquo;{search.trim()}&rdquo;</em>
+                          </>
+                        ) : pathFilterLink ? (
+                          <>
+                            Nothing on <em>{pathFilterLink.label}</em>
+                          </>
+                        ) : dayFilter ? (
                           <>
                             Nothing on <em>{formatLong(dayFilter)}</em>
                           </>
@@ -382,9 +439,10 @@ export default function Dashboard() {
                             No <em>{filter.toLowerCase()}</em> applications
                           </>
                         ),
-                        note: dayFilter
-                          ? "No applications at this stage were sent on that day."
-                          : "Pick another stage in the rail to see the rest of the pipeline.",
+                        note:
+                          search.trim() || pathFilterLink || dayFilter
+                            ? "Try clearing a filter above to see more."
+                            : "Pick another stage in the rail to see the rest of the pipeline.",
                       }
                     : {
                         title: (
