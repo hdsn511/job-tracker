@@ -46,7 +46,9 @@ export default function FunnelPanel({ nodes, links, selectedLinkId, onSelectLink
                   key={link.id}
                   d={link.d}
                   fill={link.fill}
-                  opacity={selected ? 0.75 : dimmed ? 0.18 : 0.45}
+                  opacity={selected ? 0.85 : dimmed ? 0.18 : 0.45}
+                  stroke={link.fill}
+                  strokeWidth={selected ? 1.5 : 0}
                   className="jt-funnel-ribbon"
                   onClick={() => onSelectLink(link)}
                   role="button"

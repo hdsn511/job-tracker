@@ -182,9 +182,10 @@ export default function Dashboard() {
     setSaving(true);
     try {
       if (editing) {
-        const notes = form.notes.trim()
-          ? [editing.notes, noteLine(form.notes.trim())].filter(Boolean).join("\n")
-          : editing.notes;
+        // Full replace, not an append: the timeline field in the modal now
+        // shows (and lets the user edit) the whole thing, specifically so a
+        // wrong line -- a stage that never really happened -- can be
+        // removed, not just added to.
         const row = await api(`/jobs/${editing.id}`, {
           method: "PUT",
           body: {
@@ -192,7 +193,7 @@ export default function Dashboard() {
             job_title: form.title || "Unknown title",
             status: form.status,
             application_date: form.date,
-            notes,
+            notes: form.notes,
           },
         });
         setApps((current) =>

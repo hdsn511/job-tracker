@@ -79,13 +79,17 @@ const updateJob = async (req, res) => {
     return res.status(400).json({ error: "No updatable fields provided." });
   }
 
-  // A hand-edited status or title has to survive the next resync --
-  // sync/jobs.js's upsertJobFromMessages() checks this flag before letting a
-  // re-derived stage/title overwrite what the user set by hand. The column
-  // has existed since migration 001 specifically for this ("hand-edited rows
-  // are flagged and skipped"), but nothing ever actually set it here, so
-  // every manual correction was silently reverted by the next sync/regroup.
-  if (req.body.status !== undefined || req.body.job_title !== undefined) {
+  // A hand-edited status, title, or timeline has to survive the next resync
+  // -- sync/jobs.js's upsertJobFromMessages() checks this flag before
+  // letting a re-derived stage/title/notes overwrite what the user set by
+  // hand. The column has existed since migration 001 specifically for this
+  // ("hand-edited rows are flagged and skipped"), but nothing ever actually
+  // set it here, so every manual correction was silently reverted by the
+  // next sync/regroup. `notes` included: the timeline is a full replace from
+  // the edit modal now, not an append, specifically so a wrong line (e.g. a
+  // false "Interviewing" entry) can actually be removed -- and removing it
+  // is pointless if the next regroup just regenerates it.
+  if (req.body.status !== undefined || req.body.job_title !== undefined || req.body.notes !== undefined) {
     setClauses.push("manual_override = true");
   }
 

@@ -29,7 +29,7 @@ export default function ApplicationModal({ open, application, onClose, onSave, s
             title: application.title === "Unknown title" ? "" : application.title,
             status: application.status,
             date: application.date || toISODate(new Date()),
-            notes: "",
+            notes: application.notes || "",
           }
         : emptyForm(),
     );
@@ -142,18 +142,26 @@ export default function ApplicationModal({ open, application, onClose, onSave, s
           </div>
 
           <div className="jt-field">
-            <label htmlFor="jt-notes">Notes</label>
+            <label htmlFor="jt-notes">{application ? "Timeline" : "Notes"}</label>
             <textarea
               id="jt-notes"
-              className="jt-input"
+              className="jt-input jt-notes-textarea"
               value={form.notes}
               onChange={update("notes")}
               placeholder={
                 application
-                  ? "Anything to append to this application's timeline."
+                  ? "One event per line, e.g. [2026-09-02] Applied"
                   : "Referred by Dana; recruiter said decisions in two weeks."
               }
             />
+            {application ? (
+              <span className="jt-hint">
+                This is the full timeline, editable directly — remove a wrong line (a stage that
+                never actually happened) or fix one by hand. Saving any change here stops future
+                syncs from touching this application&apos;s stage, title, or timeline automatically;
+                you&apos;re the source of truth for it from here on.
+              </span>
+            ) : null}
           </div>
 
           {error ? <div className="jt-notice">{error}</div> : null}
