@@ -107,8 +107,23 @@ function deriveStage(messages) {
 // Notes / timeline
 // ---------------------------------------------------------------------------
 
+// Calendar-day attribution (this timeline, application_date below) uses this
+// fixed zone rather than raw UTC. `.toISOString().slice(0, 10)` was the
+// original approach, but that dates anything sent after ~7pm Central as
+// "tomorrow" the moment UTC rolls over -- a real, systemic off-by-one for
+// evening applications, which are most of them. Single-user tool today; if
+// this ever serves users in other timezones, this needs to become a
+// per-user setting rather than a constant.
+const LOCAL_TIMEZONE = 'America/Chicago';
+const localDayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE });
+
+/** A Date's calendar day in LOCAL_TIMEZONE, as YYYY-MM-DD. */
+function localDay(date) {
+  return localDayFormatter.format(date);
+}
+
 function buildNoteLine({ date, status, detail, jobId, isThirdParty }) {
-  const day = date.toISOString().slice(0, 10);
+  const day = localDay(date);
   let line = `[${day}] ${status}`;
   if (detail && detail !== status) line += ` — ${detail}`;
   if (jobId) line += ` (ref: ${jobId})`;
@@ -222,13 +237,14 @@ async function upsertJobFromMessages(userId, existingJobs, group) {
     );
 
   const earliest = messages.reduce((min, m) => (m.date < min ? m.date : min), messages[0].date);
+  const applicationDate = localDay(earliest);
   const existing = findExistingJob(existingJobs, { company, jobTitle, jobId });
 
   if (!existing) {
     const [row] = await sql`
       insert into jobs (company_name, job_title, status, application_date, notes, user_id)
       values (${company}, ${jobTitle || UNKNOWN_TITLE}, ${stage},
-              ${earliest.toISOString().slice(0, 10)}, ${rebuildNotes('', syncLines)}, ${userId})
+              ${applicationDate}, ${rebuildNotes('', syncLines)}, ${userId})
       returning *
     `;
     existingJobs.push(row);
@@ -245,9 +261,13 @@ async function upsertJobFromMessages(userId, existingJobs, group) {
     ? existing.job_title
     : jobTitle || existing.job_title || UNKNOWN_TITLE;
 
+  // application_date is re-derived every re-read, same as notes/stage --
+  // it was previously frozen at whatever the first insert computed, which is
+  // how a UTC-vs-local off-by-one from before this fix would have stayed
+  // wrong forever even after the fix shipped.
   const [row] = await sql`
     update jobs
-       set notes = ${notes}, status = ${nextStatus}, job_title = ${nextTitle}
+       set notes = ${notes}, status = ${nextStatus}, job_title = ${nextTitle}, application_date = ${applicationDate}
      where id = ${existing.id} and user_id = ${userId}
      returning *
   `;
@@ -272,4 +292,6 @@ module.exports = {
   deriveStage,
   rebuildNotes,
   isSyncAuthoredLine,
+  LOCAL_TIMEZONE,
+  localDay,
 };

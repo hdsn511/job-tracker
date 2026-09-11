@@ -99,9 +99,53 @@ test('resolveMessage: an implausible LLM title is rejected in favour of the rule
   assert.equal(result.jobTitle, 'Software Engineer I, Storage');
 });
 
-test('resolveMessage: needsReview when neither engine names a company', async () => {
+// ---------------------------------------------------------------------------
+// Pre-LLM keyword gate (unrecognized senders only)
+// ---------------------------------------------------------------------------
+// gmail.js's search was broadened from a known-sender allow-list to a much
+// wider deny-list (everything except Promotions/Social/Forums) so a new
+// company's ATS domain isn't silently invisible. This gate is what keeps
+// that affordable: an unrecognized sender only reaches the LLM if its
+// subject/snippet looks job-related at all.
+
+test('resolveMessage: an unrecognized sender with no job-signal content is dropped before the LLM runs', async () => {
+  let llmCalled = false;
   const result = await resolveMessage(
-    { from: 'careers@unknown-example.com', subject: 'Hello', body: 'A note.' },
+    { from: 'newsletter@some-random-blog.com', subject: 'This week in tech', body: 'Here are five articles you might like.' },
+    { llm: async () => { llmCalled = true; return { stage: 'Applied', company: 'Should Not Matter' }; } },
+  );
+  assert.equal(result.isNoise, true);
+  assert.equal(result.reason, 'no_job_signal');
+  assert.equal(llmCalled, false, 'the LLM must not be called for signal-less mail from an unknown sender');
+});
+
+test('resolveMessage: an unrecognized sender WITH job-signal content still reaches the LLM', async () => {
+  const result = await resolveMessage(
+    { from: 'careers@some-startup.io', subject: 'Your application to Some Startup', body: 'We received your application and will follow up with next steps.' },
+    { llm: stubLlm({ stage: 'Applied', company: 'Some Startup' }) },
+  );
+  assert.equal(result.isNoise, false);
+  assert.equal(result.status, 'Applied');
+});
+
+test('resolveMessage: a KNOWN sender skips the keyword gate entirely, even with no job-signal content', async () => {
+  // talent@ibm.com is in KNOWN_DIRECT_SENDERS -- already trusted the same
+  // way it was before this gate existed.
+  const result = await resolveMessage(
+    { from: 'talent@ibm.com', subject: 'Hi', body: 'A short note.' },
+    { llm: stubLlm({ stage: 'Applied', company: 'IBM' }) },
+  );
+  assert.equal(result.isNoise, false);
+  assert.equal(result.company, 'IBM');
+});
+
+test('resolveMessage: needsReview when neither engine names a company', async () => {
+  // Has to carry actual job-application signal (an unrecognized sender with
+  // none is now dropped as noise before reaching this point at all -- see
+  // the pre-LLM keyword gate test below) while still giving neither engine
+  // enough to extract a company name.
+  const result = await resolveMessage(
+    { from: 'careers@unknown-example.com', subject: 'Thank you for your application', body: "We'll be in touch." },
     { llm: deadLlm },
   );
   assert.equal(result.needsReview, true);
@@ -117,6 +161,11 @@ test('senderNamesEmployer: true for direct/workday/tagged-icims, false for vendo
   assert.equal(senderNamesEmployer({ from: 'amd+autoreply@talent.icims.com' }), true);
   assert.equal(senderNamesEmployer({ from: 'support@micro1.ai' }), false);
   assert.equal(senderNamesEmployer({ from: 'no-reply@us.greenhouse-mail.io' }), false);
+});
+
+test('senderNamesEmployer: Dell and AMD send application mail directly, not just through a shared ATS', () => {
+  assert.equal(senderNamesEmployer({ from: 'Dell Recruiting Team <dellrecruiting@recruiting.dell.com>' }), true);
+  assert.equal(senderNamesEmployer({ from: 'AMD Careers <AMD_Careers_noreply@amd.com>' }), true);
 });
 
 test('acceptCompany: rejects ATS and screening vendor names', () => {

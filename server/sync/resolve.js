@@ -14,6 +14,7 @@ const { classifyEmail, identifyATS, isPlausibleJobTitle, trimJobTitle, ATS } = r
 const { KNOWN_DIRECT_SENDERS, THIRD_PARTY_SENDERS, KNOWN_COMPANY_SLUGS } = require('./companyMap');
 const { isAuthMail } = require('./redact');
 const { classifyWithLlm } = require('./llm');
+const { matchesJobKeyword } = require('./forwardingPredicates');
 
 const ASSESSMENT_DETAIL = 'Assessment/OA';
 
@@ -83,6 +84,16 @@ async function resolveMessage(email, { llm = classifyWithLlm } = {}) {
   const auth = isAuthMail(email);
   if (auth.drop) {
     return { isNoise: true, reason: auth.reason };
+  }
+
+  // A sender we don't already recognize (no known ATS/direct-employer match)
+  // gets one more, cheap check before an LLM call: does the subject/snippet
+  // even look job-related? This is what makes gmail.js's broad deny-list
+  // search affordable -- without it, every non-promotional email in the
+  // inbox would reach the LLM. Known senders (rules.ats truthy) skip this;
+  // they're already trusted the same way they always have been.
+  if (!rules.ats && !matchesJobKeyword({ subject: email.subject, snippet: email.snippet })) {
+    return { isNoise: true, reason: 'no_job_signal' };
   }
 
   let model = null;

@@ -8,6 +8,7 @@ const {
   buildNoteLine,
   findExistingJob,
   UNKNOWN_TITLE,
+  localDay,
 } = require('../sync/jobs');
 
 const at = (iso) => new Date(`${iso}T12:00:00Z`);
@@ -123,6 +124,30 @@ test('rebuildNotes: orders the timeline by date', () => {
     '[2026-08-01] Applied — Applied',
   ]);
   assert.equal(after, '[2026-08-01] Applied — Applied\n[2026-08-20] Rejected — Rejected');
+});
+
+// ---------------------------------------------------------------------------
+// localDay — calendar-day attribution in LOCAL_TIMEZONE, not raw UTC
+// ---------------------------------------------------------------------------
+// Real bug: an application sent at 8:47pm Central on Sept 10 lands at
+// 01:47 UTC on Sept 11. `.toISOString().slice(0, 10)` (the old approach)
+// dated it "2026-09-11" -- tomorrow, from the applicant's own perspective --
+// which showed up as an off-by-one on the calendar heat map. Confirmed
+// against 19 real jobs in the live database before this fix, 17 of which
+// were dated by the UTC day rather than the local one.
+
+test('localDay: an evening-local message that has already crossed into the next UTC day stays on its local day', () => {
+  // 01:47 UTC on the 11th = 8:47pm Central on the 10th (CDT, UTC-5).
+  assert.equal(localDay(new Date('2026-09-11T01:47:02.000Z')), '2026-09-10');
+});
+
+test('localDay: a message well within the UTC day matches both UTC and local', () => {
+  assert.equal(localDay(new Date('2026-09-10T18:17:11.000Z')), '2026-09-10');
+});
+
+test('buildNoteLine: attributes the local calendar day, not the UTC one, for a late-evening message', () => {
+  const line = buildNoteLine({ date: new Date('2026-09-11T01:47:02.000Z'), status: 'Applied', detail: 'Applied' });
+  assert.match(line, /^\[2026-09-10\]/);
 });
 
 test('buildNoteLine: renders detail, ref and third-party marker', () => {

@@ -19,18 +19,38 @@ classify/upsert behaviour.
 1. `gmailConnections.js` loads connected Gmail accounts from the
    `gmail_connections` table. `syncAllConnections()` loops over every row;
    `getConnection(userId)` fetches just one for the API route.
-2. `gmail.js` searches each connected account's Gmail for mail from known
-   ATS/employer domains, back to `gmail_connections.sync_start_date` (needs
-   only `gmail.readonly`, no write access). This is the WHOLE window on every
-   run, not "since we last looked" — the sync is a re-read, which is what
-   makes classifier improvements apply retroactively.
+2. `gmail.js` searches each connected account's Gmail back to
+   `gmail_connections.sync_start_date` (needs only `gmail.readonly`, no write
+   access). The search is a deny-list — everything except
+   Promotions/Social/Forums (`forwardingPredicates.js`'s `buildDenyListGmailQuery`,
+   the same recall-tested predicate the forwarding path uses), ORed with the
+   known-sender allow-list so a recognized employer is never missed even if
+   Gmail mis-files it. It used to be the allow-list alone, which meant a new
+   company's ATS domain we hadn't manually added yet was invisible by
+   construction — real mail from Dell and a second AMD sender went missing
+   this way before the deny-list broadening. The known-sender list still
+   matters: it's what lets an unrecognized sender's mail skip the keyword
+   gate in step 5 below and what `senderNamesEmployer` trusts for company
+   resolution. This is the WHOLE window on every run, not "since we last
+   looked" — the sync is a re-read, which is what makes classifier
+   improvements apply retroactively.
 3. `redact.js` is the boundary to the third-party LLM. Credential mail
    (one-time passcodes, verification codes) is dropped outright; what does
    get sent has codes, tracking URLs, emails and phone numbers scrubbed.
 4. `classifier.js` runs pure, deterministic rules for what is genuinely
    deterministic: sender-domain → ATS → company, plus job ID and digest
    noise. See `test/classifier.test.js` for the patterns it's tuned against.
-5. `llm.js` is the PRIMARY classifier for stage and job title —
+5. Before the LLM: `resolve.js` gates on `matchesJobKeyword()`
+   (`forwardingPredicates.js`) for any sender the allow-list doesn't already
+   recognize — the subject/snippet has to at least look job-related. Known
+   senders skip this and always reach the LLM, same as before. This is what
+   makes the broadened deny-list search in step 2 affordable: without it,
+   every personal/non-promotional email in the inbox would cost an LLM call.
+   It does trade a little recall for that — `test-filter-recall.js` measured
+   keyword-only matching at 74.4% vs. the deny-list's 98.9%, so an
+   unrecognized sender with real signal but unusual phrasing can still slip
+   through, same as it always could for forwarding.
+6. `llm.js` is the PRIMARY classifier for stage and job title —
    not a fallback. Those failed on phrasing, an unbounded space regex loses
    to. `resolve.js` merges the two and holds the model output to the rules'
    guard rails. `providers.js` holds the provider adapters (Groq and Gemini)
@@ -99,12 +119,19 @@ classify/upsert behaviour.
    Still true and worth keeping: Google Cloud trial credits live on Vertex
    AI, a different endpoint from the `generativelanguage.googleapis.com` one
    used here, so those credits do not raise this limit.
-6. `classificationCache.js` stores the derived result per Gmail message id
+7. `classificationCache.js` stores the derived result per Gmail message id
    (never the raw body), so a re-read costs no LLM calls for mail already
    seen. A result produced while the LLM was erroring is deliberately NOT
    cached, so restoring quota re-examines those messages.
-7. `jobs.js` groups the classified messages into jobs (embedded job ID
-   first, then fuzzy company+title) and writes each one authoritatively:
+8. `jobs.js` groups the classified messages into jobs (embedded job ID
+   first, then fuzzy company+title) and writes each one authoritatively.
+   `application_date` and every timeline line's date are attributed to
+   `LOCAL_TIMEZONE` (currently hardcoded to `America/Chicago`), not raw UTC —
+   `.toISOString().slice(0, 10)` dated anything sent after ~7pm Central as
+   "tomorrow" the moment UTC rolled over, a real off-by-one on the calendar
+   heat map for most evening applications. Both fields are re-derived on
+   every re-read (not just at first insert), so this self-heals existing
+   rows once a re-read runs, the same way the timeline already does.
    `deriveStage()` re-derives the stage from ALL of that job's mail, so a
    stage that was wrong is corrected — including downward. A terminal
    outcome wins outright, since you can be rejected after an interview.

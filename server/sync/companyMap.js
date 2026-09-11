@@ -13,6 +13,8 @@ const KNOWN_DIRECT_SENDERS = {
   'talentacquisitiongroup@cognizant.com': 'Cognizant',
   'careers@talent.paypal.com': 'PayPal',
   'careers@epic.com': 'Epic',
+  'dellrecruiting@recruiting.dell.com': 'Dell',
+  'amd_careers_noreply@amd.com': 'AMD',
 };
 
 // Third-party vendors that are not the employer themselves.

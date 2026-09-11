@@ -1,4 +1,5 @@
 const { KNOWN_DIRECT_SENDERS, THIRD_PARTY_SENDERS } = require('./companyMap');
+const { buildDenyListGmailQuery } = require('./forwardingPredicates');
 
 // Multi-tenant ATS platform domains — safe to match broadly since every
 // sender on them is some employer's recruiting flow.
@@ -22,24 +23,32 @@ const DIRECT_SENDER_ADDRESSES = [
   ...Object.keys(THIRD_PARTY_SENDERS),
 ];
 
-// Sender domains/addresses worth searching for at all — keeps the Gmail
-// query narrow instead of scanning the whole mailbox every run. Pure noise
-// sources (LinkedIn digests, Indeed/Wellfound alerts) are deliberately not
-// included here at all — they're never real application signal, so there's
-// no reason to spend quota fetching them just to filter them back out.
+// Sender domains/addresses known well enough to trust without a keyword
+// check — used two ways below: always included in the search (so a known
+// sender's mail is never missed even when Gmail mis-files it into an
+// excluded category), and checked again in resolve.js to decide whether an
+// unrecognized sender needs its content-based keyword gate applied at all.
 const CANDIDATE_SENDER_TERMS = [...ATS_PLATFORM_DOMAINS, ...DIRECT_SENDER_ADDRESSES];
 
 function buildSenderQuery() {
   return `(${CANDIDATE_SENDER_TERMS.map((term) => `from:${term}`).join(' OR ')})`;
 }
 
-/** Gmail search query for the messages worth fetching, since a given time. */
+/**
+ * Gmail search query for the messages worth fetching, since a given time.
+ *
+ * Broader than just the known-sender list: ORs in forwardingPredicates.js's
+ * deny-list (everything except Promotions/Social/Forums, the same
+ * recall-tested predicate the forwarding path uses), so a new company's ATS
+ * domain we haven't added to CANDIDATE_SENDER_TERMS yet is still caught
+ * instead of silently invisible. This widens what gets FETCHED; resolve.js's
+ * pre-LLM keyword gate is what keeps that affordable -- an unrecognized
+ * sender only reaches the LLM if its subject/snippet looks job-related.
+ */
 function buildSearchQuery({ afterEpochSeconds } = {}) {
-  const parts = [buildSenderQuery()];
-  if (afterEpochSeconds) {
-    parts.push(`after:${afterEpochSeconds}`);
-  }
-  return parts.join(' ');
+  const core = `(${buildDenyListGmailQuery()}) OR ${buildSenderQuery()}`;
+  if (!afterEpochSeconds) return core;
+  return `(${core}) after:${afterEpochSeconds}`;
 }
 
 async function listCandidateMessageIds(gmail, { afterEpochSeconds } = {}) {
