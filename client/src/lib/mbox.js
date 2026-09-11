@@ -12,7 +12,7 @@ import PostalMime from "postal-mime";
 // A Takeout export scoped to one label (per the backfill instructions) should
 // be small; these are a safety valve against someone uploading an entire,
 // unfiltered mailbox and freezing their tab.
-export const MAX_FILE_BYTES = 200 * 1024 * 1024; // 200MB
+export const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500MB
 export const MAX_MESSAGES = 20000;
 
 export class MboxParseError extends Error {}
@@ -129,7 +129,10 @@ async function parseOneMessage(block) {
   const rfc822 = unescapeMboxrd(stripEnvelopeLine(block));
   if (!rfc822.trim()) return null;
 
-  const email = await PostalMime.parse(rfc822, { attachmentEncoding: "base64" });
+  // Default attachmentEncoding (arraybuffer, no decoding) is fine -- attachment
+  // content is never read below, only email.text/email.html, so there's no
+  // reason to pay for base64-inflating it into memory.
+  const email = await PostalMime.parse(rfc822);
 
   const from = formatFromHeader(email.from);
   if (!from) return null;
