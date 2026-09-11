@@ -519,6 +519,16 @@ function isPlausibleJobTitle(s) {
   // "Application Software Engineer" and "Applications Engineer" are real
   // titles, and blanket-rejecting the word threw them away.
   if (/\b(?:your|the|this|my|our)\s+applications?\b/i.test(s)) return false;
+  // The EEO/"Equal Employment Opportunity is The Law" footer is boilerplate
+  // on nearly every corporate application-confirmation email. The generic
+  // "the X opportunity" fallback pattern read "the EEOC's ... Equal
+  // Employment[\n]Opportunity is The Law" as a title -- confirmed against a
+  // real Google confirmation, where it landed as job_title 'EEOC's "Equal
+  // Employment' and, since a group's title only ever gets set once, stuck
+  // there even after a later email would otherwise have supplied the real
+  // role (or left it correctly unknown, since this email names no role at
+  // all).
+  if (/equal employment/i.test(s)) return false;
   return !JOB_TITLE_BAD_LEAD_WORDS.has(words[0].toLowerCase());
 }
 

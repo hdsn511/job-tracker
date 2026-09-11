@@ -697,3 +697,16 @@ test('extractJobTitle: rejects captures that span a clause boundary', () => {
     null,
   );
 });
+
+test('extractJobTitle: rejects the EEO/"Equal Employment Opportunity" boilerplate footer', () => {
+  // Real Google application-confirmation footer. The generic "the X
+  // opportunity" fallback read this as job_title 'EEOC's "Equal Employment' --
+  // confirmed against the actual mail via Gmail after the DB showed that
+  // exact garbage title on a real job row.
+  const body =
+    'Learn more about our Equal Employment Opportunity policy:\n' +
+    'https://careers.google.com/eeo/ and the EEOC\'s "Equal Employment\n' +
+    'Opportunity is The Law" (PDF):\n' +
+    'https://careers.google.com/static/files/eeoisthelaw.pdf';
+  assert.equal(extractJobTitle({ subject: '', body }), null);
+});
