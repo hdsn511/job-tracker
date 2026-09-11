@@ -156,12 +156,18 @@ const uploadInFlight = new Set();
  * the file and extracted {from, subject, body, date, messageId} per message
  * (see client/src/lib/mbox.js) -- the raw file itself never reaches the
  * server. Runs each new message through the same resolveMessage()/
- * saveInboundClassification() pipeline the Mailgun webhook uses, then
- * regenerates jobs once for the whole batch rather than once per message.
+ * saveInboundClassification() pipeline the Mailgun webhook uses. The
+ * regroup-and-upsert-jobs step reads and rewrites the user's *entire* signal
+ * history, so it only runs once, on the batch the client marks `final` --
+ * running it after every batch made a large backfill quadratic in its own
+ * message count for no benefit, since nothing reads the jobs table until the
+ * whole upload finishes anyway. A backfill abandoned before its final batch
+ * leaves already-classified messages ungrouped until the upload is resumed.
  */
 const uploadBackfillBatch = async (req, res) => {
   const userId = req.user.id;
   const messages = Array.isArray(req.body?.messages) ? req.body.messages : null;
+  const final = req.body?.final === true;
 
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'No messages provided.' });
@@ -178,8 +184,6 @@ const uploadBackfillBatch = async (req, res) => {
   const result = { received: messages.length, saved: 0, duplicates: 0, noise: 0, staged: 0, errors: 0 };
 
   try {
-    let anySaved = false;
-
     for (const raw of messages) {
       const normalized = normalizeUploadedMessage(raw);
       if (normalized.error) {
@@ -207,7 +211,6 @@ const uploadBackfillBatch = async (req, res) => {
         classified.date = message.date;
         await saveInboundClassification(userId, inboundEmailId, classified);
         result.saved += 1;
-        anySaved = true;
         if (classified.isNoise) result.noise += 1;
         else if (classified.status && classified.company) result.staged += 1;
       } catch (error) {
@@ -216,7 +219,7 @@ const uploadBackfillBatch = async (req, res) => {
       }
     }
 
-    if (anySaved) {
+    if (final) {
       const existingJobs = await getExistingJobs(userId);
       const signalMessages = await getSignalMessages(userId);
       for (const group of groupMessages(signalMessages)) {

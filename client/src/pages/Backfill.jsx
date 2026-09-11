@@ -138,7 +138,7 @@ export default function Backfill() {
       for (let i = batchIndex; i < batches.length; i += 1) {
         const summary = await api("/api/inbound/upload-batch", {
           method: "POST",
-          body: { messages: batches[i] },
+          body: { messages: batches[i], final: i === batches.length - 1 },
         });
         setTotals((prev) => ({
           saved: prev.saved + summary.saved,
