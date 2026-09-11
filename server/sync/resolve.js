@@ -92,7 +92,21 @@ async function resolveMessage(email, { llm = classifyWithLlm } = {}) {
   // search affordable -- without it, every non-promotional email in the
   // inbox would reach the LLM. Known senders (rules.ats truthy) skip this;
   // they're already trusted the same way they always have been.
-  if (!rules.ats && !matchesJobKeyword({ subject: email.subject, snippet: email.snippet })) {
+  //
+  // `snippet` falls back to `body` here because the upload/forwarding path
+  // (inboundController.js) never sets snippet -- it has no Gmail search
+  // result to take one from, only the full message it already parsed. That
+  // silently left this gate checking the SUBJECT LINE ALONE for every
+  // uploaded message, since matchesJobKeyword only looks at subject+snippet.
+  // A subject like "Thank you for Applying to Amazon!" or "Kikoff
+  // Application Confirmation" doesn't contain any of JOB_KEYWORDS's
+  // phrases -- the phrase is always in the body -- so real application mail
+  // from any sender not already on the direct/ATS allow-list was dropped as
+  // no_job_signal before ever reaching company/title extraction. Confirmed
+  // against a real backfill: 852 of 995 uploaded messages fell to this gate.
+  // The OAuth path is unaffected: it already sets a real `snippet`, so this
+  // fallback never triggers there.
+  if (!rules.ats && !matchesJobKeyword({ subject: email.subject, snippet: email.snippet || email.body })) {
     return { isNoise: true, reason: 'no_job_signal' };
   }
 

@@ -128,6 +128,27 @@ test('resolveMessage: an unrecognized sender WITH job-signal content still reach
   assert.equal(result.status, 'Applied');
 });
 
+// The upload/forwarding path (inboundController.js) never sets `snippet` --
+// it has no Gmail search result to take one from, only the full message it
+// already parsed. Real application subjects ("Thank you for Applying to
+// Amazon!", "Kikoff Application Confirmation") almost never contain a
+// JOB_KEYWORDS phrase themselves -- the phrase is in the body -- so with no
+// snippet fallback this gate silently dropped real application mail from
+// any sender not already on the direct/ATS allow-list. Confirmed against a
+// real mbox backfill: 852 of 995 uploaded messages fell to this gate.
+test('resolveMessage: an unrecognized sender with a generic subject but job-signal BODY still reaches the LLM, even with no snippet set', async () => {
+  const result = await resolveMessage(
+    {
+      from: 'careers@some-startup.io',
+      subject: 'Thank you for Applying to Some Startup!',
+      body: 'Hi, thanks for applying! We have received your application for the Software Engineer position. What happens next?',
+    },
+    { llm: stubLlm({ stage: 'Applied', company: 'Some Startup' }) },
+  );
+  assert.equal(result.isNoise, false);
+  assert.equal(result.status, 'Applied');
+});
+
 test('resolveMessage: a KNOWN sender skips the keyword gate entirely, even with no job-signal content', async () => {
   // talent@ibm.com is in KNOWN_DIRECT_SENDERS -- already trusted the same
   // way it was before this gate existed.
