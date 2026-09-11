@@ -176,7 +176,16 @@ const STATUS_RULES = [
     // decision. Real rejections are declarative ("you were not selected"),
     // never "if"-gated. Confirmed against real ID.me and IBM mail that was
     // misclassified as Rejected this way when the LLM fell back to rules.
-    exclude: [/\bif\b[\s\S]{0,60}\bnot (?:been )?(?:selected|shortlisted)\b/i],
+    //
+    // The window is 200, not 60, because the conditional clause can be a
+    // whole list of hypothetical outcomes before it ever reaches the
+    // disqualifying phrase. Real Microsoft application-confirmation mail,
+    // sent the same minute as applying: "If you see the job moved to an
+    // inactive state, that means the position is either no longer open,
+    // you withdrew from consideration, or you were not selected for the
+    // role" -- 142 characters from "if" to "not selected", so the original
+    // 60-char window didn't reach and this read as an actual rejection.
+    exclude: [/\bif\b[\s\S]{0,200}\bnot (?:been )?(?:selected|shortlisted)\b/i],
   },
   {
     status: 'Interviewing',
@@ -234,10 +243,19 @@ const STATUS_RULES = [
       /entry-level assessment/i,
       /rembrandt/i,
     ],
-    // Vetoed when the same email is really just profile/account paperwork.
-    // The rule is skipped rather than the whole email — genuine interview
-    // language in an earlier rule still wins.
-    exclude: ADMIN_CHORE_PATTERNS,
+    // Vetoed when the same email is really just profile/account paperwork,
+    // OR when the assessment is a conditional future promise rather than an
+    // actual invite already sent. Real Roblox application-confirmation
+    // mail: "Complete our Assessments: If your profile meets our basic
+    // qualifications, you'll receive a link to our assessments" -- matched
+    // the first pattern above on "Complete our Assessments" alone, even
+    // though the very next clause says the link (the real invite) hasn't
+    // been sent yet. The rule is skipped rather than the whole email —
+    // genuine interview language in an earlier rule still wins.
+    exclude: [
+      ...ADMIN_CHORE_PATTERNS,
+      /\bif\b[\s\S]{0,150}\byou(?:'|’)?(?:ll| will)\b[\s\S]{0,60}\breceive\b[\s\S]{0,60}\b(?:assessment|link)/i,
+    ],
   },
   {
     status: 'Applied',

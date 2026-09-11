@@ -27,6 +27,16 @@ const JOB_KEYWORDS = [
   'online assessment',
   'unfortunately',
   'move forward',
+  // The two most central application-process nouns were missing outright --
+  // neither "interview" nor "assessment" appeared anywhere in this list.
+  // Confirmed real: a Roblox assessment invitation ("We're thrilled to
+  // invite you to the next step of the recruiting process — the
+  // assessments! ... Access My Assessments.") matched none of the phrases
+  // above and was dropped as no_job_signal before ever reaching the
+  // classifier, even though the rules engine classifies the same text
+  // correctly once it's let through.
+  'interview',
+  'assessment',
 ];
 
 // Real Gmail category label ids (Settings -> Filters lets you scope a filter

@@ -37,6 +37,23 @@ test('matchesJobKeyword: matches against subject or snippet, case-insensitively'
   assert.equal(matchesJobKeyword({ subject: 'Weekly newsletter' }), false);
 });
 
+test('matchesJobKeyword: "interview" and "assessment" match on their own', () => {
+  // Real Roblox assessment invitation from an unrecognized sender: "We're
+  // thrilled to invite you to the next step of the recruiting process — the
+  // assessments! ... Access My Assessments." matched none of the original
+  // 8 phrases (no "online assessment", no "next steps" -- it says "next
+  // step" singular) and was dropped as no_job_signal before ever reaching
+  // the classifier, which reads the same text correctly once let through.
+  assert.equal(
+    matchesJobKeyword({
+      subject: 'Your Roblox Assessments Invitation',
+      snippet: "We're thrilled to invite you to the next step of the recruiting process — the assessments!",
+    }),
+    true,
+  );
+  assert.equal(matchesJobKeyword({ subject: 'Interview invitation from our team' }), true);
+});
+
 // ---------------------------------------------------------------------------
 // alsoWithAllowList
 // ---------------------------------------------------------------------------

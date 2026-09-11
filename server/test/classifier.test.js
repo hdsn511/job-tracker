@@ -177,6 +177,21 @@ test('classifyStatus: a conditional "if you are not selected" disclaimer is not 
   assert.notEqual(classifyStatus(text).status, 'Rejected');
 });
 
+test('classifyStatus: a long conditional list before "not selected" is still not a rejection', () => {
+  // Real Microsoft application-confirmation mail, sent the same minute as
+  // applying: "If you see the job moved to an inactive state, that means
+  // the position is either no longer open, you withdrew from
+  // consideration, or you were not selected for the role." 142 characters
+  // separate "if" from "not selected" -- the original 60-char exclude
+  // window didn't reach across this longer conditional list, so a fresh
+  // application confirmation read as an actual rejection.
+  const text =
+    'Thank you for taking the time to submit your application for Software Engineer Intune. ' +
+    'If you see the job moved to an inactive state, that means the position is either no longer open, ' +
+    'you withdrew from consideration, or you were not selected for the role.';
+  assert.notEqual(classifyStatus(text).status, 'Rejected');
+});
+
 test('classifyStatus: a declarative "not selected" (no "if") still reads as Rejected', () => {
   // The exclude above is scoped to the conditional framing specifically --
   // a real, already-decided rejection using the same words must still match.
@@ -482,6 +497,32 @@ test('classifyStatus: real assessments map to the Assessment stage', () => {
     'Assessment/OA',
   );
   assert.equal(classifyStatus('Your take-home assignment is ready').detail, 'Assessment/OA');
+});
+
+test('classifyStatus: a conditional "if you meet qualifications, you will receive" assessment promise is not yet Assessment', () => {
+  // Real Roblox application-confirmation mail, sent the same minute as
+  // applying: "Complete our Assessments: If your profile meets our basic
+  // qualifications, you'll receive a link to our assessments." The first
+  // Assessment pattern matched on "Complete our Assessments" alone, even
+  // though the very next clause says the actual invite (the link) hasn't
+  // been sent -- this is still just an application confirmation.
+  const text =
+    'Thank you for applying to Roblox! We have received your application for our Software Engineer role. ' +
+    'Complete our Assessments: If your profile meets our basic qualifications, you will receive a link to our assessments.';
+  assert.notEqual(classifyStatus(text).status, 'Assessment');
+});
+
+test('classifyStatus: a real, already-issued assessment invitation still matches Assessment', () => {
+  // The other half of the same real Roblox thread, sent later once the
+  // assessment was actually ready: "We're thrilled to invite you to the
+  // next step of the recruiting process — the assessments! ... Access My
+  // Assessments." Guards against the conditional exclude above being too
+  // broad and swallowing a genuine invite.
+  const text =
+    'Your Roblox Assessments Invitation\n' +
+    "We're thrilled to invite you to the next step of the recruiting process — the assessments! " +
+    'Access My Assessments. Your Assessments will expire in 7 days.';
+  assert.equal(classifyStatus(text).status, 'Assessment');
 });
 
 test('classifyStatus: real interview invitations stay Interviewing', () => {
