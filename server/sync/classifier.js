@@ -161,6 +161,13 @@ const STATUS_RULES = [
       // interest" catch-all when the LLM was unavailable.
       /(?:chosen|decided) to (?:move forward|proceed|progress) with another candidate/i,
       /decided to pursue (?:a |another )?different candidate/i,
+      // "we have identified other candidates to move forward in
+      // consideration for this role" -- the verb is "identified", not
+      // "decided"/"chosen", so none of the above matched. Confirmed missing
+      // against a real Chewy rejection that the LLM read correctly but the
+      // rules engine (the only path a failed/rate-limited LLM call falls
+      // back to) let through to null instead.
+      /identified (?:other|another) candidate/i,
     ],
     // A rejection VERB inside a conditional/hypothetical clause about a
     // future, not-yet-decided outcome ("if you are not selected, you will
@@ -192,6 +199,17 @@ const STATUS_RULES = [
       /next steps?\b[\s\S]{0,120}\b(?:schedule|scheduled|availability|call with|speak with|meet with)\b/i,
       /would like to (?:speak|talk|chat|meet) with you/i,
       /moving (?:you )?(?:forward|ahead) (?:to|with|in)[\s\S]{0,60}interview/i,
+    ],
+    // Mirrors the Rejected rule's conditional guard just above: a scheduling
+    // VERB inside an "if [you have been] selected" clause is a not-yet-
+    // decided future outcome, not an actual invitation. Confirmed against a
+    // real Chewy application-confirmation email ("If you have been
+    // selected, a recruiter will contact you directly to set up an
+    // interview") that this rule misread as an actual interview invite
+    // although nothing had been decided yet -- the application was only
+    // just submitted.
+    exclude: [
+      /\bif\b[\s\S]{0,60}\b(?:you(?:'|’)?(?:ve| have)? been |you(?:'|’)?re |you are )?(?:selected|shortlisted|chosen)\b[\s\S]{0,80}\b(?:interview|schedule|call)\b/i,
     ],
   },
   {
@@ -307,11 +325,19 @@ function trimCompany(s) {
   return s.split(/\s+[|\-–—]\s+/)[0].replace(/[\s.,;:-]+$/, '').trim() || null;
 }
 
+// A capture starting with a personal pronoun is the tell that a pattern like
+// "interest in joining (X)" grabbed the wrong span -- "...interest in
+// joining us as a Cloud Engineer Graduate" names no company at all, "us" is
+// the employer referring to itself. Confirmed real: a ByteDance graduate-
+// program email extracted "us as a Cloud Engineer Graduate" as the company.
+const LEADING_PRONOUN = /^(?:us|we|our|you|your|them|they|it|i)\b/i;
+
 // Free-text regex extraction is fragile — a plausible company name is short.
 // Rejects sentence-length captures like "the AI Software Development
 // Engineer position at AMD" instead of trusting them outright.
 function isPlausibleCompanyName(s) {
   if (!s) return false;
+  if (LEADING_PRONOUN.test(s.trim())) return false;
   return s.length <= 60 && s.trim().split(/\s+/).length <= 6;
 }
 

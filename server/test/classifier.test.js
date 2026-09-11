@@ -183,6 +183,31 @@ test('classifyStatus: a declarative "not selected" (no "if") still reads as Reje
   assert.equal(classifyStatus('After careful review, you were not selected for this role').status, 'Rejected');
 });
 
+test('classifyStatus: "identified other candidates to move forward" is Rejected', () => {
+  // Real Chewy rejection: "we have identified other candidates to move
+  // forward in consideration for this role." The verb is "identified", not
+  // "decided"/"chosen" like the other Rejected patterns, so this fell
+  // through to null when the LLM (which read it correctly) was unavailable
+  // and the rules engine was the only fallback.
+  const text =
+    'Thank you for expressing interest in our Software Engineer I role. We appreciate you applying. ' +
+    'At this time, we have identified other candidates to move forward in consideration for this role.';
+  assert.equal(classifyStatus(text).status, 'Rejected');
+});
+
+test('classifyStatus: a conditional "if you have been selected...set up an interview" is not an interview stage', () => {
+  // Real Chewy application-confirmation mail (sent the same day as
+  // applying): "If you have been selected, a recruiter will contact you
+  // directly to set up an interview." Nothing has been decided yet -- this
+  // misread as a real invitation before the Interviewing rule had a
+  // conditional guard mirroring the Rejected rule's.
+  const text =
+    'The Chewy recruiting team thanks you for your interest in this role! ' +
+    'If you have been selected, a recruiter will contact you directly to set up an interview. ' +
+    'Otherwise we will keep your resume in our database.';
+  assert.notEqual(classifyStatus(text).status, 'Interviewing');
+});
+
 test('classifyStatus: "chosen/decided to (move forward with|pursue) a[nother] (different) candidate" is Rejected', () => {
   // Real Oracle rejection: "chosen to move forward with another candidate."
   assert.equal(
@@ -309,6 +334,21 @@ test('extractCompany: "<role> position at <Company>" resolves the employer', () 
         'Engineer position at AMD, Inc.. Your submission will be reviewed.',
     }),
     'AMD',
+  );
+});
+
+test('extractCompany: a capture starting with a personal pronoun is rejected', () => {
+  // Real ByteDance graduate-program subject: "...your interest in joining us
+  // as a Cloud Engineer Graduate" -- the "joining (X)" pattern grabbed "us
+  // as a Cloud Engineer Graduate" as if it were the company name, when "us"
+  // is the employer referring to itself and names no company at all.
+  assert.equal(
+    extractCompany({
+      from: 'careers@unknown-corp-example.com',
+      subject: 'We welcome your interest in joining us as a Cloud Engineer Graduate',
+      body: '',
+    }),
+    null,
   );
 });
 
