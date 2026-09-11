@@ -1323,6 +1323,49 @@ input[type="date"].jt-input::-webkit-calendar-picker-indicator:hover {
   width: 100%;
 }
 
+/* Backfill upload: drop zone + progress bar. */
+.jt-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 28px 16px;
+  border: 1.5px dashed var(--jt-border-strong);
+  border-radius: var(--jt-radius-sm);
+  background: var(--jt-surface-alt);
+  cursor: pointer;
+  transition:
+    border-color var(--jt-duration-fast) var(--jt-ease),
+    background var(--jt-duration-fast) var(--jt-ease);
+}
+
+.jt-dropzone:hover,
+.jt-dropzone.is-active {
+  border-color: var(--jt-sage);
+  background: rgba(92, 138, 102, 0.08);
+}
+
+.jt-dropzone input[type="file"] {
+  display: none;
+}
+
+.jt-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--jt-surface-alt);
+  border: 1px solid var(--jt-border-strong);
+  overflow: hidden;
+}
+
+.jt-progress-bar {
+  height: 100%;
+  background: var(--jt-sage);
+  transition: width var(--jt-duration-fast) var(--jt-ease);
+}
+
 .jt-step-num {
   width: 26px;
   height: 26px;

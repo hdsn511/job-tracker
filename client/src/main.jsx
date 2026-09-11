@@ -5,6 +5,7 @@ import PaperGrainOverlay from "@/components/PaperGrainOverlay";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ConnectGmail from "@/pages/ConnectGmail";
 import ForwardMail from "@/pages/ForwardMail";
+import Backfill from "@/pages/Backfill";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import "./index.css";
@@ -29,6 +30,14 @@ createRoot(document.getElementById("root")).render(
           element={
             <ProtectedRoute>
               <ForwardMail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/backfill"
+          element={
+            <ProtectedRoute>
+              <Backfill />
             </ProtectedRoute>
           }
         />

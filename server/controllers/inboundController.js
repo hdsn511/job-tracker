@@ -4,7 +4,9 @@ const { verifyMailgunSignature } = require('../sync/inboundVerify');
 const { saveInboundClassification, getSignalMessages } = require('../sync/inboundClassifications');
 const { resolveMessage } = require('../sync/resolve');
 const { getExistingJobs, upsertJobFromMessages, groupMessages } = require('../sync/jobs');
-const { buildGmailCreateFilterUrl } = require('../sync/forwardingPredicates');
+const { buildGmailCreateFilterUrl, buildDenyListGmailQuery } = require('../sync/forwardingPredicates');
+const { normalizeStartDate } = require('../sync/startDate');
+const { MAX_BATCH_SIZE, normalizeUploadedMessage, saveUploadedEmail } = require('../sync/inboundUploads');
 
 /**
  * Creates (or returns the existing) forwarding alias for this user. Idempotent
@@ -127,4 +129,114 @@ const receiveInboundEmail = async (req, res) => {
   res.status(200).json({ received: true });
 };
 
-module.exports = { setupInboundAddress, getInboundStatus, receiveInboundEmail };
+/**
+ * The Gmail search/filter URL for the backfill flow: the same recall-tested
+ * deny-list the forwarding setup screen uses, bounded to mail on or after the
+ * date the user picked. See forwardingPredicates.js for why the date has to
+ * be ANDed onto the whole OR rather than appended.
+ */
+const getBackfillFilterUrl = async (req, res) => {
+  const normalized = normalizeStartDate(req.query.after);
+  if (normalized.error) {
+    return res.status(400).json({ error: normalized.error });
+  }
+
+  const query = buildDenyListGmailQuery({ after: normalized.value });
+  res.json({ after: normalized.value, gmailFilterUrl: buildGmailCreateFilterUrl(query) });
+};
+
+// One batch at a time per user -- upsertJobFromMessages reads existingJobs
+// into memory and mutates it as it inserts, so two batches for the same user
+// running concurrently (two tabs, a double-submit) could both miss each
+// other's inserts and write the same job twice.
+const uploadInFlight = new Set();
+
+/**
+ * Ingests one batch of browser-parsed mbox messages: the client already split
+ * the file and extracted {from, subject, body, date, messageId} per message
+ * (see client/src/lib/mbox.js) -- the raw file itself never reaches the
+ * server. Runs each new message through the same resolveMessage()/
+ * saveInboundClassification() pipeline the Mailgun webhook uses, then
+ * regenerates jobs once for the whole batch rather than once per message.
+ */
+const uploadBackfillBatch = async (req, res) => {
+  const userId = req.user.id;
+  const messages = Array.isArray(req.body?.messages) ? req.body.messages : null;
+
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: 'No messages provided.' });
+  }
+  if (messages.length > MAX_BATCH_SIZE) {
+    return res.status(400).json({ error: `Send at most ${MAX_BATCH_SIZE} messages per batch.` });
+  }
+
+  if (uploadInFlight.has(userId)) {
+    return res.status(409).json({ error: 'A batch is already processing for this account. Please wait.' });
+  }
+  uploadInFlight.add(userId);
+
+  const result = { received: messages.length, saved: 0, duplicates: 0, noise: 0, staged: 0, errors: 0 };
+
+  try {
+    let anySaved = false;
+
+    for (const raw of messages) {
+      const normalized = normalizeUploadedMessage(raw);
+      if (normalized.error) {
+        result.errors += 1;
+        continue;
+      }
+      const { value: message } = normalized;
+
+      let inboundEmailId;
+      try {
+        inboundEmailId = await saveUploadedEmail(userId, message);
+      } catch (error) {
+        console.error(`Upload batch: failed to save a message for user ${userId}:`, error);
+        result.errors += 1;
+        continue;
+      }
+      if (!inboundEmailId) {
+        result.duplicates += 1;
+        continue;
+      }
+
+      try {
+        const email = { from: message.from, subject: message.subject, body: message.body, date: message.date };
+        const classified = await resolveMessage(email);
+        classified.date = message.date;
+        await saveInboundClassification(userId, inboundEmailId, classified);
+        result.saved += 1;
+        anySaved = true;
+        if (classified.isNoise) result.noise += 1;
+        else if (classified.status && classified.company) result.staged += 1;
+      } catch (error) {
+        console.error(`Upload batch: classify failed for user ${userId}:`, error);
+        result.errors += 1;
+      }
+    }
+
+    if (anySaved) {
+      const existingJobs = await getExistingJobs(userId);
+      const signalMessages = await getSignalMessages(userId);
+      for (const group of groupMessages(signalMessages)) {
+        await upsertJobFromMessages(userId, existingJobs, group);
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error(`Upload batch failed for user ${userId}:`, error);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  } finally {
+    uploadInFlight.delete(userId);
+  }
+};
+
+module.exports = {
+  setupInboundAddress,
+  getInboundStatus,
+  receiveInboundEmail,
+  getBackfillFilterUrl,
+  uploadBackfillBatch,
+};

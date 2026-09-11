@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { STAGES } from "@/lib/applications";
-import { LogOutIcon, RefreshIcon, Wordmark } from "./icons";
+import { LogOutIcon, RefreshIcon, UploadIcon, Wordmark } from "./icons";
 
 /** YYYY-MM-DD, `days` before today — mirrors the same helper in ConnectGmail. */
 function isoDaysAgo(days) {
@@ -29,6 +29,7 @@ export default function Rail({
   onChangeSyncStart,
   onConnectGmail,
   onDisconnectGmail,
+  onOpenBackfill,
   onLogout,
   onDeleteAccount,
   onAddApplication,
@@ -139,6 +140,14 @@ export default function Rail({
             >
               <RefreshIcon className={syncing ? "jt-spin" : undefined} />
               {syncing ? "Syncing…" : "Resync inbox"}
+            </button>
+            {/* Available either way -- a resync re-reads an OAuth account's
+                own window, but backfilling further back (or filling a
+                forwarding-only account's history, which has no window to
+                re-read at all) goes through the upload flow instead. */}
+            <button type="button" className="jt-btn jt-btn-ghost" onClick={onOpenBackfill}>
+              <UploadIcon />
+              Backfill history
             </button>
             <button type="button" className="jt-btn jt-btn-ghost" onClick={onLogout}>
               <LogOutIcon />

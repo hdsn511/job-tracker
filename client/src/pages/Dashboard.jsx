@@ -198,13 +198,24 @@ export default function Dashboard() {
     }
   };
 
-  /** e.g. "12 new, 3 updated (via gemini)" / "... (no LLM configured — rules only)" */
+  /**
+   * e.g. "12 new, 3 updated (via gemini)" / "... (no LLM configured — rules only)"
+   *
+   * A message that matched a known company but that neither engine could
+   * stage is dropped silently by sync/index.js — no job, no timeline note,
+   * nothing — so needsReview/llmFailed are surfaced here even though there's
+   * no screen yet to go inspect *which* messages those were. A visible flag
+   * beats a number nobody ever sees.
+   */
   const syncSummaryText = (summary) => {
     const counts = `${summary.inserted} new, ${summary.updated} updated`;
+    const flags = [];
+    if (summary.needsReview) flags.push(`${summary.needsReview} needs review`);
+    if (summary.llmFailed) flags.push(`${summary.llmFailed} LLM call${summary.llmFailed === 1 ? "" : "s"} failed`);
     const engine = summary.llmProvider
       ? `via ${summary.llmProvider}`
       : "no LLM configured — rules only";
-    return `${counts} (${engine})`;
+    return flags.length ? `${counts}, ${flags.join(", ")} (${engine})` : `${counts} (${engine})`;
   };
 
   const handleResync = async () => {
@@ -247,6 +258,8 @@ export default function Dashboard() {
   };
 
   const handleConnectGmail = () => navigate("/connect");
+
+  const handleOpenBackfill = () => navigate("/backfill");
 
   const handleDisconnectGmail = async () => {
     if (!window.confirm("Disconnect Gmail? You can reconnect any time.")) return;
@@ -295,6 +308,7 @@ export default function Dashboard() {
           onChangeSyncStart={handleChangeSyncStart}
           onConnectGmail={handleConnectGmail}
           onDisconnectGmail={handleDisconnectGmail}
+          onOpenBackfill={handleOpenBackfill}
           onLogout={handleLogout}
           onDeleteAccount={() => setDeleteAccountOpen(true)}
           onAddApplication={() => {

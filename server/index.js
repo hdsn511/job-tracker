@@ -24,7 +24,10 @@ const allowedOrigins = [
 // also means `origin` can never be "*", which the explicit allowlist above
 // already guarantees.
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+// Default is 100kb. The backfill upload-batch endpoint sends up to
+// MAX_BATCH_SIZE (server/sync/inboundUploads.js) client-parsed messages per
+// request; every other route's payloads stay far under this either way.
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 const PORT = 8000

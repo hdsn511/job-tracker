@@ -181,6 +181,10 @@ export default function ForwardMail() {
               </a>
             ) : null}
 
+            <button type="button" className="jt-btn jt-btn-primary" onClick={() => navigate("/backfill")}>
+              Continue &mdash; add older mail too
+            </button>
+
             <button
               type="button"
               className="jt-btn jt-btn-ghost"

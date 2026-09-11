@@ -1,9 +1,21 @@
 const express = require('express');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const auth = require('../middleware/authMiddleware');
 const inboundController = require('../controllers/inboundController');
 
 const inboundRouter = express.Router();
+
+// Bounds how many upload-batch requests one client can fire -- at
+// MAX_BATCH_SIZE (50) messages/request this still allows a ~15k-message
+// backfill inside the window, well past any realistic export.
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests. Please slow down and try again shortly.' },
+});
 
 // Mailgun's route forward() action posts multipart/form-data only when the
 // message has attachments -- a plain email with none (a Gmail forwarding
@@ -18,6 +30,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 inboundRouter.get('/status', auth, inboundController.getInboundStatus);
 inboundRouter.post('/setup', auth, inboundController.setupInboundAddress);
+inboundRouter.get('/backfill-filter-url', auth, inboundController.getBackfillFilterUrl);
+inboundRouter.post('/upload-batch', auth, uploadLimiter, inboundController.uploadBackfillBatch);
 
 // No auth middleware -- this is Mailgun's webhook, not a logged-in user.
 // Authenticity comes from verifyMailgunSignature() inside the controller.

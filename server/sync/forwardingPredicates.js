@@ -74,6 +74,11 @@ const CANDIDATE_FILTERS = {
   denyListOnly,
 };
 
+/** 'YYYY-MM-DD' -> 'YYYY/MM/DD', the only date format Gmail's `after:` operator accepts. */
+function toGmailDate(isoDate) {
+  return isoDate.replace(/-/g, '/');
+}
+
 /**
  * The Gmail search query that reproduces denyList's criteria, for prefilling
  * Gmail's own filter-creation screen (Settings -> Filters -> Create a new
@@ -82,17 +87,27 @@ const CANDIDATE_FILTERS = {
  * anything not in an excluded category, OR anything from an allow-listed
  * domain regardless of category.
  *
+ * `after` (a 'YYYY-MM-DD' string, already validated by sync/startDate.js)
+ * bounds the same query for the backfill flow: reusing the recall-tested
+ * deny-list rather than a separate allow-list keeps a Takeout export scoped
+ * to mail this app would classify the same way it classifies live mail. The
+ * OR is wrapped in its own parens before ANDing the date on -- appending
+ * `after:X` unparenthesized after "(A) OR (B)" would bind to B alone under
+ * most search-query precedence, silently letting pre-date mail through the
+ * deny-list side.
+ *
  * This only sets the filter's search criteria -- Gmail requires the target
  * address to already be a verified forwarding address (Settings -> Forwarding
  * and POP/IMAP) before "Forward it to" can be selected, so that step can't be
  * deep-linked and still has to happen once in the Gmail UI.
  */
-function buildDenyListGmailQuery() {
+function buildDenyListGmailQuery({ after } = {}) {
   const excludeCategories = EXCLUDED_CATEGORY_LABELS.map(
     (label) => `-category:${label.replace('CATEGORY_', '').toLowerCase()}`,
   ).join(' ');
   const allowListClause = `from:(${ATS_DOMAINS.join(' OR ')})`;
-  return `(${excludeCategories}) OR ${allowListClause}`;
+  const core = `(${excludeCategories}) OR ${allowListClause}`;
+  return after ? `(${core}) after:${toGmailDate(after)}` : core;
 }
 
 /**
@@ -117,6 +132,7 @@ module.exports = {
   denyList,
   denyListOnly,
   CANDIDATE_FILTERS,
+  toGmailDate,
   buildDenyListGmailQuery,
   buildGmailCreateFilterUrl,
 };

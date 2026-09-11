@@ -63,6 +63,16 @@ export function MailIcon({ size = 16 }) {
   );
 }
 
+export function UploadIcon({ size = 16 }) {
+  return (
+    <Stroke size={size}>
+      <path d="M12 16V4" />
+      <path d="m6 9 6-6 6 6" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </Stroke>
+  );
+}
+
 /** The mark is an arch, the theme's one structural motif. */
 export function LogoMark() {
   return (
