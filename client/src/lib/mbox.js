@@ -158,11 +158,22 @@ async function parseOneMessage(block) {
  * in-browser; nothing here touches the network. Yields to the event loop
  * periodically so a large file doesn't freeze the tab while parsing.
  *
+ * `since` (a 'YYYY-MM-DD' string, the date picked on the backfill screen) is
+ * enforced here rather than trusted from the export -- Gmail's own filter UI
+ * appears to drop the `after:` bound when a search is converted into a
+ * persistent filter (filters are meant to match future mail forever, so a
+ * fixed date doesn't really fit one), so "apply to existing conversations"
+ * can label -- and Takeout then export -- mail from well before the chosen
+ * date. Confirmed against a real export: 14 months of extra mail, most of it
+ * correctly caught as noise downstream but not all of it. Filtering by date
+ * here means correctness never depends on that part of Gmail's UI behaving
+ * as hoped.
+ *
  * @param {File} file
- * @param {{ onProgress?: (parsed: number, total: number) => void }} [opts]
- * @returns {Promise<{ messages: object[], skippedCount: number, totalCount: number }>}
+ * @param {{ onProgress?: (parsed: number, total: number) => void, since?: string }} [opts]
+ * @returns {Promise<{ messages: object[], skippedCount: number, outOfRangeCount: number, totalCount: number }>}
  */
-export async function parseMboxFile(file, { onProgress } = {}) {
+export async function parseMboxFile(file, { onProgress, since } = {}) {
   if (file.size > MAX_FILE_BYTES) {
     const limitMb = MAX_FILE_BYTES / 1024 / 1024;
     throw new MboxParseError(
@@ -185,14 +196,24 @@ export async function parseMboxFile(file, { onProgress } = {}) {
     );
   }
 
+  // Parsed as local midnight (no "Z"), matching how the date <input> the
+  // user picked this from is itself a local-calendar-day value.
+  const sinceDate = since ? new Date(`${since}T00:00:00`) : null;
+
   const messages = [];
   let skippedCount = 0;
+  let outOfRangeCount = 0;
 
   for (let i = 0; i < blocks.length; i += 1) {
     try {
       const parsed = await parseOneMessage(blocks[i]);
-      if (parsed) messages.push(parsed);
-      else skippedCount += 1;
+      if (!parsed) {
+        skippedCount += 1;
+      } else if (sinceDate && new Date(parsed.date) < sinceDate) {
+        outOfRangeCount += 1;
+      } else {
+        messages.push(parsed);
+      }
     } catch {
       // One malformed message (truncated MIME, unsupported encoding) should
       // not fail the whole import -- it's dropped and counted.
@@ -207,5 +228,5 @@ export async function parseMboxFile(file, { onProgress } = {}) {
     }
   }
 
-  return { messages, skippedCount, totalCount: blocks.length };
+  return { messages, skippedCount, outOfRangeCount, totalCount: blocks.length };
 }

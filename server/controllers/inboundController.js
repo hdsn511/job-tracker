@@ -1,9 +1,9 @@
 const sql = require('../db');
 const { generateAlias, mailgunPayloadToEmail } = require('../sync/inboundEmail');
 const { verifyMailgunSignature } = require('../sync/inboundVerify');
-const { saveInboundClassification, getSignalMessages } = require('../sync/inboundClassifications');
+const { saveInboundClassification } = require('../sync/inboundClassifications');
 const { resolveMessage } = require('../sync/resolve');
-const { getExistingJobs, upsertJobFromMessages, groupMessages } = require('../sync/jobs');
+const { getExistingJobs, getAllSignalMessages, upsertJobFromMessages, groupMessages } = require('../sync/jobs');
 const { buildGmailCreateFilterUrl, buildDenyListGmailQuery } = require('../sync/forwardingPredicates');
 const { normalizeStartDate } = require('../sync/startDate');
 const { MAX_BATCH_SIZE, normalizeUploadedMessage, saveUploadedEmail } = require('../sync/inboundUploads');
@@ -113,7 +113,7 @@ const receiveInboundEmail = async (req, res) => {
 
     if (!result.isNoise && result.status && result.company) {
       const existingJobs = await getExistingJobs(userId);
-      const messages = await getSignalMessages(userId);
+      const messages = await getAllSignalMessages(userId);
       for (const group of groupMessages(messages)) {
         await upsertJobFromMessages(userId, existingJobs, group);
       }
@@ -221,7 +221,7 @@ const uploadBackfillBatch = async (req, res) => {
 
     if (final) {
       const existingJobs = await getExistingJobs(userId);
-      const signalMessages = await getSignalMessages(userId);
+      const signalMessages = await getAllSignalMessages(userId);
       for (const group of groupMessages(signalMessages)) {
         await upsertJobFromMessages(userId, existingJobs, group);
       }

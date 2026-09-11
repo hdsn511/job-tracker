@@ -54,6 +54,7 @@ export default function Backfill() {
   const [parseError, setParseError] = useState("");
   const [parsedMessages, setParsedMessages] = useState(null);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [outOfRangeCount, setOutOfRangeCount] = useState(0);
 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -89,6 +90,7 @@ export default function Backfill() {
     setParseError("");
     setParsedMessages(null);
     setSkippedCount(0);
+    setOutOfRangeCount(0);
     setBatches(null);
     setBatchIndex(0);
     setTotals(emptyTotals);
@@ -102,11 +104,13 @@ export default function Backfill() {
     setParsing(true);
     setParseProgress({ parsed: 0, total: 0 });
     try {
-      const { messages, skippedCount: skipped } = await parseMboxFile(file, {
+      const { messages, skippedCount: skipped, outOfRangeCount: outOfRange } = await parseMboxFile(file, {
+        since: date,
         onProgress: (parsed, total) => setParseProgress({ parsed, total }),
       });
       setParsedMessages(messages);
       setSkippedCount(skipped);
+      setOutOfRangeCount(outOfRange);
       setBatches(chunk(messages, UPLOAD_CHUNK_SIZE));
     } catch (error) {
       setParseError(
@@ -160,7 +164,9 @@ export default function Backfill() {
 
   const stagedNotice =
     parsedMessages && parsedMessages.length === 0
-      ? "No usable messages were found in this file — it may not be the exported label, or every message in it was unreadable."
+      ? outOfRangeCount > 0
+        ? `Every message in this file was from before ${date} — try picking an earlier "Backfill from" date, or check that this is the export you meant to upload.`
+        : "No usable messages were found in this file — it may not be the exported label, or every message in it was unreadable."
       : null;
 
   return (
@@ -307,10 +313,20 @@ export default function Backfill() {
             {parsedMessages && parsedMessages.length > 0 && !done ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div className="jt-hint">
-                  Found {parsedMessages.length} message{parsedMessages.length === 1 ? "" : "s"}
-                  {skippedCount > 0 ? ` (${skippedCount} unreadable, skipped)` : ""}. Nothing is sent
-                  until you click below.
+                  Found {parsedMessages.length} message{parsedMessages.length === 1 ? "" : "s"} on or after{" "}
+                  {date}
+                  {skippedCount > 0 ? `, ${skippedCount} unreadable` : ""}
+                  {outOfRangeCount > 0 ? `, ${outOfRangeCount} from before ${date} skipped` : ""}. Nothing
+                  is sent until you click below.
                 </div>
+                {outOfRangeCount > 0 ? (
+                  <div className="jt-hint">
+                    This export had mail from well before the date you picked &mdash; Gmail&apos;s filter
+                    doesn&apos;t reliably keep a date bound once &ldquo;apply to existing
+                    conversations&rdquo; runs. That older mail was filtered out here, in your browser,
+                    before anything was sent.
+                  </div>
+                ) : null}
 
                 {uploading ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

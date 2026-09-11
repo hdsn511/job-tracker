@@ -1,4 +1,5 @@
 const sql = require('../db');
+const { getSignalMessages: getInboundSignalMessages } = require('./inboundClassifications');
 
 // Placeholder written when no role could be extracted. Treated as "no title
 // yet" everywhere else, so a later email carrying the real role can match the
@@ -213,6 +214,55 @@ async function getExistingJobs(userId) {
 }
 
 /**
+ * Gmail OAuth's own signal messages -- the message_classifications-side
+ * counterpart to inboundClassifications.js's getSignalMessages(), which
+ * covers the forwarding/upload path's inbound_message_classifications
+ * table. Kept separate for the same reason the two tables are separate: no
+ * Gmail message id on the inbound side to key a shared table on.
+ */
+async function getOAuthSignalMessages(userId) {
+  const rows = await sql`
+    select message_date, stage, detail, company, job_title, job_id, is_third_party
+      from message_classifications
+     where user_id = ${userId}
+       and is_noise = false
+       and stage is not null
+       and company is not null
+  `;
+
+  return rows.map((row) => ({
+    date: row.message_date ? new Date(row.message_date) : new Date(),
+    status: row.stage,
+    detail: row.detail,
+    company: row.company,
+    jobTitle: row.job_title,
+    jobId: row.job_id,
+    isThirdParty: row.is_third_party,
+  }));
+}
+
+/**
+ * Every non-noise, staged signal message this user has, across BOTH
+ * ingestion paths -- Gmail OAuth (message_classifications) and forwarding/
+ * upload (inbound_message_classifications). Regrouping a job must see the
+ * full picture regardless of which path triggered it: a regroup driven by
+ * only one path's table silently erases the other path's contribution to a
+ * shared job the next time it runs, since rebuildNotes() replaces every
+ * sync-authored line with whatever the current call computed. Confirmed
+ * against real data before this fix existed: an upload-derived rejection
+ * for a job Gmail OAuth also had assessment mail for was one Gmail resync
+ * away from being silently reverted, because the resync's regroup step only
+ * ever considered message_classifications.
+ */
+async function getAllSignalMessages(userId) {
+  const [oauth, inbound] = await Promise.all([
+    getOAuthSignalMessages(userId),
+    getInboundSignalMessages(userId),
+  ]);
+  return [...oauth, ...inbound];
+}
+
+/**
  * Writes one job from the full set of classified messages that belong to it.
  *
  * Unlike the old incremental upsert, this is authoritative: company, title,
@@ -281,6 +331,7 @@ module.exports = {
   STATUS_RANK,
   TERMINAL_STAGES,
   getExistingJobs,
+  getAllSignalMessages,
   upsertJobFromMessages,
   groupMessages,
   belongsToGroup,

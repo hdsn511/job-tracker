@@ -4,7 +4,7 @@ const { resolveMessage } = require('./resolve');
 const { listConnections, setLastSyncedAt } = require('./gmailConnections');
 const { loadCached, saveClassification } = require('./classificationCache');
 const { getLlmStats, resetLlmStats, activeProvider, activeModel } = require('./llm');
-const { getExistingJobs, upsertJobFromMessages, groupMessages } = require('./jobs');
+const { getExistingJobs, getAllSignalMessages, upsertJobFromMessages, groupMessages } = require('./jobs');
 
 // Used when a connection has no explicit start date — the historical default.
 const DEFAULT_LOOKBACK_SECONDS = 30 * 24 * 60 * 60;
@@ -133,8 +133,16 @@ async function syncConnection(
   });
 
   const existingJobs = await getExistingJobs(userId);
-  const groups = groupMessages(usable);
-  log(`${usable.length} classified message(s) -> ${groups.length} job(s).`);
+  // Grouping/upsert has to see this user's FULL signal history, not just
+  // this run's OAuth-scoped `usable` -- a job with mail from both this path
+  // and the forwarding/upload path would otherwise have its regroup
+  // silently drop whatever the other path contributed, the next time
+  // whichever path runs last wins. `usable` (above) still drives the
+  // needsReview/noise counts, since those are specifically about what this
+  // run classified.
+  const allSignal = await getAllSignalMessages(userId);
+  const groups = groupMessages(allSignal);
+  log(`${usable.length} classified message(s) this run -> ${groups.length} job(s) across all signal.`);
 
   for (const group of groups) {
     try {
