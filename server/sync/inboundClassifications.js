@@ -39,15 +39,24 @@ async function saveInboundClassification(userId, inboundEmailId, result) {
  * Every non-noise, staged message this user has ever forwarded, shaped the
  * same way sync/index.js's `usable` array is -- so it can be handed straight
  * to jobs.js's groupMessages/upsertJobFromMessages unmodified.
+ *
+ * Joined against inbound_emails for message_id_header -- this table doesn't
+ * carry it directly, but that's the identifier jobs.js's
+ * reconcileDuplicateMessages() uses to recognize the same physical email
+ * also classified via the OAuth path. classified_at rides along as the
+ * tiebreaker: the more recently classified copy is the one more likely to
+ * reflect the current classifier.
  */
 async function getSignalMessages(userId) {
   const rows = await sql`
-    select message_date, stage, detail, company, job_title, job_id, is_third_party
-      from inbound_message_classifications
-     where user_id = ${userId}
-       and is_noise = false
-       and stage is not null
-       and company is not null
+    select c.message_date, c.stage, c.detail, c.company, c.job_title, c.job_id,
+           c.is_third_party, c.classified_at, e.message_id_header
+      from inbound_message_classifications c
+      join inbound_emails e on e.id = c.inbound_email_id
+     where c.user_id = ${userId}
+       and c.is_noise = false
+       and c.stage is not null
+       and c.company is not null
   `;
 
   return rows.map((row) => ({
@@ -58,6 +67,8 @@ async function getSignalMessages(userId) {
     jobTitle: row.job_title,
     jobId: row.job_id,
     isThirdParty: row.is_third_party,
+    messageIdHeader: row.message_id_header,
+    classifiedAt: row.classified_at ? new Date(row.classified_at) : null,
   }));
 }
 

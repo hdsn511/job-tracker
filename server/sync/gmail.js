@@ -190,6 +190,11 @@ async function getMessage(gmail, id) {
     from: getHeader(headers, 'From'),
     subject: getHeader(headers, 'Subject'),
     date: getHeader(headers, 'Date'),
+    // The RFC 5322 Message-Id header -- distinct from `id` (Gmail's own,
+    // API-internal id) and the one identifier stable across the OAuth,
+    // forwarding, and upload paths for what is physically the same email.
+    // See migration 004.
+    messageIdHeader: getHeader(headers, 'Message-Id') || null,
     body: extractBody(data.payload),
     snippet: data.snippet || '',
   };

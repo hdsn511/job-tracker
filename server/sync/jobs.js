@@ -240,7 +240,8 @@ async function getExistingJobs(userId) {
  */
 async function getOAuthSignalMessages(userId) {
   const rows = await sql`
-    select message_date, stage, detail, company, job_title, job_id, is_third_party
+    select message_date, stage, detail, company, job_title, job_id, is_third_party,
+           classified_at, message_id_header
       from message_classifications
      where user_id = ${userId}
        and is_noise = false
@@ -256,7 +257,44 @@ async function getOAuthSignalMessages(userId) {
     jobTitle: row.job_title,
     jobId: row.job_id,
     isThirdParty: row.is_third_party,
+    messageIdHeader: row.message_id_header,
+    classifiedAt: row.classified_at ? new Date(row.classified_at) : null,
   }));
+}
+
+/**
+ * When the same physical email was classified via both ingestion paths --
+ * recognized by a shared Message-Id header, populated going forward per
+ * migration 004 -- keeps only the more recently classified copy and drops
+ * the other, rather than letting both feed groupMessages/deriveStage as if
+ * they were two independent messages.
+ *
+ * Confirmed necessary against real data: a Microsoft application-
+ * confirmation email, cached Rejected by the OAuth path before a classifier
+ * fix landed and correctly Applied by the upload path after, left the job
+ * showing Rejected -- deriveStage's terminal-wins rule had no way to know
+ * the two rows were the same email rather than two different outcomes.
+ *
+ * A message with no header (the vast majority of history so far, since this
+ * is only populated going forward) passes through untouched -- there is
+ * nothing to reconcile it against.
+ */
+function reconcileDuplicateMessages(messages) {
+  const byMessageId = new Map();
+  const passthrough = [];
+
+  for (const message of messages) {
+    if (!message.messageIdHeader) {
+      passthrough.push(message);
+      continue;
+    }
+    const existing = byMessageId.get(message.messageIdHeader);
+    if (!existing || (message.classifiedAt || 0) > (existing.classifiedAt || 0)) {
+      byMessageId.set(message.messageIdHeader, message);
+    }
+  }
+
+  return [...passthrough, ...byMessageId.values()];
 }
 
 /**
@@ -271,13 +309,17 @@ async function getOAuthSignalMessages(userId) {
  * for a job Gmail OAuth also had assessment mail for was one Gmail resync
  * away from being silently reverted, because the resync's regroup step only
  * ever considered message_classifications.
+ *
+ * The union is then deduplicated by Message-Id -- see
+ * reconcileDuplicateMessages() -- so an email that reached both paths
+ * contributes once, not twice.
  */
 async function getAllSignalMessages(userId) {
   const [oauth, inbound] = await Promise.all([
     getOAuthSignalMessages(userId),
     getInboundSignalMessages(userId),
   ]);
-  return [...oauth, ...inbound];
+  return reconcileDuplicateMessages([...oauth, ...inbound]);
 }
 
 /**
@@ -357,6 +399,7 @@ module.exports = {
   TERMINAL_STAGES,
   getExistingJobs,
   getAllSignalMessages,
+  reconcileDuplicateMessages,
   upsertJobFromMessages,
   groupMessages,
   belongsToGroup,

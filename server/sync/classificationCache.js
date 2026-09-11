@@ -18,7 +18,7 @@ async function loadCached(userId, messageIds) {
 
   const rows = await sql`
     select gmail_message_id, message_date, is_noise, reason, stage, detail,
-           company, job_title, job_id, ats, is_third_party, source
+           company, job_title, job_id, ats, is_third_party, source, message_id_header
       from message_classifications
      where user_id = ${userId}
        and gmail_message_id = any(${messageIds})
@@ -37,6 +37,7 @@ async function loadCached(userId, messageIds) {
       ats: row.ats,
       isThirdParty: row.is_third_party,
       source: row.source,
+      messageIdHeader: row.message_id_header,
       needsReview: !row.stage || !row.company,
       cached: true,
     });
@@ -49,12 +50,12 @@ async function saveClassification(userId, messageId, result) {
   await sql`
     insert into message_classifications
       (user_id, gmail_message_id, message_date, is_noise, reason, stage, detail,
-       company, job_title, job_id, ats, is_third_party, source)
+       company, job_title, job_id, ats, is_third_party, source, message_id_header)
     values
       (${userId}, ${messageId}, ${result.date || null}, ${Boolean(result.isNoise)}, ${result.reason || null},
        ${result.status || null}, ${result.detail || null}, ${result.company || null},
        ${result.jobTitle || null}, ${result.jobId || null}, ${result.ats || null},
-       ${Boolean(result.isThirdParty)}, ${result.source || null})
+       ${Boolean(result.isThirdParty)}, ${result.source || null}, ${result.messageIdHeader || null})
     on conflict (user_id, gmail_message_id) do update
       set message_date = excluded.message_date,
           is_noise = excluded.is_noise,
@@ -67,6 +68,7 @@ async function saveClassification(userId, messageId, result) {
           ats = excluded.ats,
           is_third_party = excluded.is_third_party,
           source = excluded.source,
+          message_id_header = excluded.message_id_header,
           classified_at = now()
   `;
 }

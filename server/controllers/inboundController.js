@@ -107,10 +107,19 @@ const receiveInboundEmail = async (req, res) => {
   }
   const userId = address.user_id;
 
+  // Mailgun parses the MIME message for us and hands the Message-Id header
+  // through as its own field -- no raw-MIME request needed. Captured here so
+  // the same email arriving via Gmail OAuth too can be recognized as one
+  // message rather than two (see migration 004 / sync/jobs.js). Left off
+  // the existing (user_id, message_id_header) dedup index deliberately:
+  // user_id stays unset here exactly as before, so this insert keeps its
+  // current "always record every delivery" behavior rather than picking up
+  // ON CONFLICT semantics that could turn a genuine Mailgun retry into a
+  // thrown unique-violation instead of the required 2xx.
   const [inboundEmail] = await sql`
-    insert into inbound_emails (alias, raw_from, raw_subject, raw_body)
+    insert into inbound_emails (alias, raw_from, raw_subject, raw_body, message_id_header)
     values (${alias}, ${body.from || body.sender || null}, ${body.subject || null},
-            ${body['stripped-text'] || body['body-plain'] || null})
+            ${body['stripped-text'] || body['body-plain'] || null}, ${body['Message-Id'] || null})
     returning id
   `;
 

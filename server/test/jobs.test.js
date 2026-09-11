@@ -7,6 +7,7 @@ const {
   isSyncAuthoredLine,
   buildNoteLine,
   findExistingJob,
+  reconcileDuplicateMessages,
   UNKNOWN_TITLE,
   localDay,
 } = require('../sync/jobs');
@@ -199,4 +200,54 @@ test('findExistingJob: fuzzy title match still works for a row with no job id re
   const jobs = [{ id: 1, company_name: 'Amazon', job_title: 'Software Development Engineer – Database 2026', notes: '' }];
   const found = findExistingJob(jobs, { company: 'Amazon', jobTitle: 'Software Development Engineer', jobId: '3177934' });
   assert.equal(found && found.id, 1);
+});
+
+// ---------------------------------------------------------------------------
+// reconcileDuplicateMessages -- same email arriving via both ingestion paths
+// ---------------------------------------------------------------------------
+
+// Real case that motivated this: a Microsoft application-confirmation email
+// was cached Rejected by the OAuth path before a classifier fix landed, and
+// classified correctly as Applied by the upload path after. Both fed
+// getAllSignalMessages as if they were two different messages, and
+// deriveStage's terminal-wins rule picked the stale Rejected.
+test('reconcileDuplicateMessages: same Message-Id from both paths keeps only the more recently classified copy', () => {
+  const stale = {
+    status: 'Rejected',
+    company: 'Microsoft',
+    date: at('2026-09-03'),
+    messageIdHeader: 'abc123@mail.microsoft.com',
+    classifiedAt: at('2026-09-03'),
+  };
+  const fresh = {
+    status: 'Applied',
+    company: 'Microsoft',
+    date: at('2026-09-03'),
+    messageIdHeader: 'abc123@mail.microsoft.com',
+    classifiedAt: at('2026-09-11'),
+  };
+  const result = reconcileDuplicateMessages([stale, fresh]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].status, 'Applied');
+});
+
+test('reconcileDuplicateMessages: order does not matter -- the freshest copy always wins', () => {
+  const stale = { status: 'Rejected', messageIdHeader: 'x@y.com', classifiedAt: at('2026-09-01') };
+  const fresh = { status: 'Applied', messageIdHeader: 'x@y.com', classifiedAt: at('2026-09-10') };
+  assert.equal(reconcileDuplicateMessages([fresh, stale])[0].status, 'Applied');
+  assert.equal(reconcileDuplicateMessages([stale, fresh])[0].status, 'Applied');
+});
+
+test('reconcileDuplicateMessages: messages without a Message-Id pass through untouched, including duplicates among themselves', () => {
+  const a = { status: 'Applied', company: 'A', messageIdHeader: null };
+  const b = { status: 'Applied', company: 'A', messageIdHeader: null };
+  const result = reconcileDuplicateMessages([a, b]);
+  assert.equal(result.length, 2);
+});
+
+test('reconcileDuplicateMessages: distinct Message-Ids are all kept', () => {
+  const a = { status: 'Applied', messageIdHeader: 'a@x.com', classifiedAt: at('2026-09-01') };
+  const b = { status: 'Interviewing', messageIdHeader: 'b@x.com', classifiedAt: at('2026-09-02') };
+  const result = reconcileDuplicateMessages([a, b]);
+  assert.equal(result.length, 2);
 });

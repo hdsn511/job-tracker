@@ -92,6 +92,7 @@ async function syncConnection(
     try {
       result = await resolveMessage(email);
       result.date = new Date(email.date || Date.now());
+      result.messageIdHeader = email.messageIdHeader || null;
       summary.classified += 1;
     } catch (err) {
       log(`Failed to classify message ${id} ("${email.subject}"): ${err.message}`);
