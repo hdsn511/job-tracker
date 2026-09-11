@@ -7,6 +7,19 @@ const { getExistingJobs, getAllSignalMessages, upsertJobFromMessages, groupMessa
 const { buildGmailCreateFilterUrl, buildDenyListGmailQuery } = require('../sync/forwardingPredicates');
 const { normalizeStartDate } = require('../sync/startDate');
 const { MAX_BATCH_SIZE, normalizeUploadedMessage, saveUploadedEmail } = require('../sync/inboundUploads');
+const { getLlmStats, resetLlmStats, activeProvider, activeModel } = require('../sync/llm');
+
+// Mirrors sync/index.js's FETCH_DELAY_MS: a large backfill (thousands of
+// messages in one sitting, unlike a bounded Gmail sync window) fires LLM
+// calls back-to-back otherwise, which blows through Groq's per-minute token
+// ceiling far faster than its per-day request cap alone would. Confirmed
+// against real data: a real backfill's upload-sourced classifications
+// disagreed with the same messages' Gmail-sync classifications 14 times,
+// nearly all resolving to whichever the LLM actually ran for -- the rules
+// fallback (necessary and correct when the LLM is genuinely unavailable)
+// is measurably less accurate, so it's worth pacing calls to need it less.
+const CLASSIFY_DELAY_MS = 250;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Creates (or returns the existing) forwarding alias for this user. Idempotent
@@ -184,7 +197,12 @@ const uploadBackfillBatch = async (req, res) => {
   const result = { received: messages.length, saved: 0, duplicates: 0, noise: 0, staged: 0, errors: 0 };
 
   try {
+    resetLlmStats();
+    let first = true;
     for (const raw of messages) {
+      if (!first) await sleep(CLASSIFY_DELAY_MS);
+      first = false;
+
       const normalized = normalizeUploadedMessage(raw);
       if (normalized.error) {
         result.errors += 1;
@@ -226,6 +244,18 @@ const uploadBackfillBatch = async (req, res) => {
         await upsertJobFromMessages(userId, existingJobs, group);
       }
     }
+
+    // Surfaced for the same reason sync/index.js's summary carries these --
+    // a batch that fell back to the (necessarily weaker) rules engine looked
+    // identical to a healthy one otherwise, which is how this went unnoticed
+    // until an audit against the real mailbox found it.
+    const llm = getLlmStats();
+    const provider = activeProvider();
+    result.llmProvider = provider ? provider.name : null;
+    result.llmModel = provider ? activeModel() : null;
+    result.llmAttempted = llm.attempted;
+    result.llmFailed = llm.failed;
+    result.llmNotConfigured = llm.notConfigured;
 
     res.json(result);
   } catch (error) {

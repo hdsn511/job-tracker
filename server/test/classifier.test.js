@@ -147,6 +147,50 @@ test('classifyStatus: Rejected signals', () => {
   );
 });
 
+// Regression coverage for three real misclassifications found by auditing
+// this user's actual mail against what the app had stored (real Gmail
+// content, paraphrased here rather than quoted verbatim).
+
+test('classifyStatus: a conditional "if you are not selected" disclaimer is not a rejection', () => {
+  // Real IBM assessment-invite mail: "If you are successful with the
+  // assessment, you will be contacted about next steps. If you are not
+  // selected, you will be notified." -- a hypothetical about a future,
+  // undecided outcome, not a decision that already happened.
+  const text =
+    "You're invited to complete our assessment. If you are successful, you will be contacted about next steps. " +
+    'If you are not selected, you will be notified, and you are welcome to apply for other open positions.';
+  assert.notEqual(classifyStatus(text).status, 'Rejected');
+});
+
+test('classifyStatus: a declarative "not selected" (no "if") still reads as Rejected', () => {
+  // The exclude above is scoped to the conditional framing specifically --
+  // a real, already-decided rejection using the same words must still match.
+  assert.equal(classifyStatus('After careful review, you were not selected for this role').status, 'Rejected');
+});
+
+test('classifyStatus: "chosen/decided to (move forward with|pursue) a[nother] (different) candidate" is Rejected', () => {
+  // Real Oracle rejection: "chosen to move forward with another candidate."
+  assert.equal(
+    classifyStatus('The hiring manager has chosen to move forward with another candidate.').status,
+    'Rejected',
+  );
+  // Real Intel rejection: "decided to pursue a different candidate."
+  assert.equal(
+    classifyStatus('After careful review, we have decided to pursue a different candidate.').status,
+    'Rejected',
+  );
+});
+
+test('classifyStatus: a generic mention of "interview process" near "next steps" is not an interview stage', () => {
+  // Real OpenAI application-confirmation mail: "we'll discuss next steps...
+  // learn more about our hiring philosophy and interview process" -- an
+  // informational link, not an invitation for this candidate.
+  const text =
+    "Your application has been received. We'll reach out to discuss next steps. " +
+    'In the meantime, learn more about our hiring philosophy and interview process.';
+  assert.notEqual(classifyStatus(text).status, 'Interviewing');
+});
+
 test('classifyStatus: Offer signals', () => {
   assert.equal(classifyStatus('We are pleased to offer you the position').status, 'Offer');
   assert.equal(classifyStatus('Please find your offer letter attached').status, 'Offer');

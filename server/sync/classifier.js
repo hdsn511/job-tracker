@@ -154,7 +154,22 @@ const STATUS_RULES = [
       /will not be (?:progressing|proceeding)/i,
       /after careful consideration[\s\S]{0,120}other candidates/i,
       /unfortunately[\s\S]{0,200}\bnot\b/i,
+      // Singular "a/another candidate" phrasings real rejection mail uses,
+      // as distinct from the plural "other candidates" already covered
+      // above -- confirmed missing against real Oracle/Intel rejections
+      // that instead fell through to Applied's generic "thank you for your
+      // interest" catch-all when the LLM was unavailable.
+      /(?:chosen|decided) to (?:move forward|proceed|progress) with another candidate/i,
+      /decided to pursue (?:a |another )?different candidate/i,
     ],
+    // A rejection VERB inside a conditional/hypothetical clause about a
+    // future, not-yet-decided outcome ("if you are not selected, you will
+    // be notified") is boilerplate risk-disclosure language common in
+    // assessment and application-confirmation mail -- not an actual
+    // decision. Real rejections are declarative ("you were not selected"),
+    // never "if"-gated. Confirmed against real ID.me and IBM mail that was
+    // misclassified as Rejected this way when the LLM fell back to rules.
+    exclude: [/\bif\b[\s\S]{0,60}\bnot (?:been )?(?:selected|shortlisted)\b/i],
   },
   {
     status: 'Interviewing',
@@ -167,8 +182,14 @@ const STATUS_RULES = [
       /phone screen/i,
       /(?:your |share your |provide your )?availability[\s\S]{0,60}\b(?:call|interview|chat|conversation|meeting)\b/i,
       // "Next steps" alone is boilerplate in application confirmations, so it
-      // only counts when an actual interview/scheduling word follows it.
-      /next steps?\b[\s\S]{0,120}\b(?:interview|schedule|availability|call with|speak with|meet with)\b/i,
+      // only counts when an actual scheduling word follows it. Bare
+      // "interview" was in this alternation too, but that's still too loose
+      // on its own -- confirmed against a real OpenAI confirmation email
+      // ("we'll discuss next steps... learn more about our hiring
+      // philosophy and interview process") that got misread as a real
+      // invitation. The other Interviewing patterns above already cover
+      // genuine "invited to interview" phrasing with tighter context.
+      /next steps?\b[\s\S]{0,120}\b(?:schedule|scheduled|availability|call with|speak with|meet with)\b/i,
       /would like to (?:speak|talk|chat|meet) with you/i,
       /moving (?:you )?(?:forward|ahead) (?:to|with|in)[\s\S]{0,60}interview/i,
     ],
