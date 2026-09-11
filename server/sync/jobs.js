@@ -46,12 +46,14 @@ function titleSimilarity(a, b) {
 
 const REF_PATTERN = /\(ref:\s*([A-Za-z0-9-]+)\)/i;
 
+function existingJobRef(job) {
+  const match = (job.notes || '').match(REF_PATTERN);
+  return match ? match[1].toLowerCase() : null;
+}
+
 function findExistingJob(existingJobs, { company, jobTitle, jobId }) {
   if (jobId) {
-    const byRef = existingJobs.find((job) => {
-      const match = (job.notes || '').match(REF_PATTERN);
-      return match && match[1].toLowerCase() === String(jobId).toLowerCase();
-    });
+    const byRef = existingJobs.find((job) => existingJobRef(job) === String(jobId).toLowerCase());
     if (byRef) return byRef;
   }
 
@@ -59,6 +61,22 @@ function findExistingJob(existingJobs, { company, jobTitle, jobId }) {
 
   return (
     existingJobs.find((job) => {
+      // A row that already carries a DIFFERENT job id is a different
+      // requisition, full stop -- however similar the titles read. Two
+      // distinct Amazon postings both titled "Software Development
+      // Engineer ..." collided here before this check existed: the second
+      // one's applied/rejected messages got fuzzy-matched into the first
+      // one's row and silently overwrote it, one incoming group at a time,
+      // for every generic title Amazon (and similar large employers) reuse
+      // across many reqs. Confirmed against real Gmail data auditing 6
+      // Amazon applications where 2 vanished from the jobs table this way.
+      // Only a row with NO ref of its own -- pre-dating job-id extraction,
+      // or from a source that never had one -- is eligible for the fuzzy
+      // fallback below.
+      if (jobId) {
+        const ref = existingJobRef(job);
+        if (ref && ref !== String(jobId).toLowerCase()) return false;
+      }
       if (!companiesMatch(company, job.company_name)) return false;
       if (!jobTitle || !job.job_title || job.job_title === UNKNOWN_TITLE) return true;
       return titleSimilarity(jobTitle, job.job_title) >= 0.4;

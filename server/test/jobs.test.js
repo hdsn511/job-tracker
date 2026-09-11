@@ -178,3 +178,25 @@ test('findExistingJob: matches by job id ref across a title change', () => {
   const found = findExistingJob(jobs, { company: 'Different Co', jobTitle: 'Other', jobId: '3177934' });
   assert.equal(found && found.id, 7);
 });
+
+// A row already carrying a DIFFERENT job id ref is a different requisition,
+// however similar the titles read -- two distinct Amazon postings both
+// titled "Software Development Engineer ..." collided here before this
+// check existed: findExistingJob would fall through the failed ref lookup
+// into the fuzzy company+title matcher below, silently merge the second
+// job's messages into the first job's row, and overwrite it. Confirmed
+// against real Gmail data auditing 6 Amazon applications where 2 vanished
+// from the jobs table this way.
+test('findExistingJob: never fuzzy-matches into a row with a different job id ref, even with near-identical titles', () => {
+  const jobs = [
+    { id: 1, company_name: 'Amazon', job_title: 'Software Development Engineer – Database 2026', notes: '[2026-09-03] Applied — Applied (ref: 3130865)' },
+  ];
+  const found = findExistingJob(jobs, { company: 'Amazon', jobTitle: 'Software Development Engineer', jobId: '3177934' });
+  assert.equal(found, null);
+});
+
+test('findExistingJob: fuzzy title match still works for a row with no job id ref of its own', () => {
+  const jobs = [{ id: 1, company_name: 'Amazon', job_title: 'Software Development Engineer – Database 2026', notes: '' }];
+  const found = findExistingJob(jobs, { company: 'Amazon', jobTitle: 'Software Development Engineer', jobId: '3177934' });
+  assert.equal(found && found.id, 1);
+});
