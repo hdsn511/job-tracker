@@ -79,6 +79,16 @@ const updateJob = async (req, res) => {
     return res.status(400).json({ error: "No updatable fields provided." });
   }
 
+  // A hand-edited status or title has to survive the next resync --
+  // sync/jobs.js's upsertJobFromMessages() checks this flag before letting a
+  // re-derived stage/title overwrite what the user set by hand. The column
+  // has existed since migration 001 specifically for this ("hand-edited rows
+  // are flagged and skipped"), but nothing ever actually set it here, so
+  // every manual correction was silently reverted by the next sync/regroup.
+  if (req.body.status !== undefined || req.body.job_title !== undefined) {
+    setClauses.push("manual_override = true");
+  }
+
   values.push(id, req.user.id);
 
   try {
@@ -86,7 +96,7 @@ const updateJob = async (req, res) => {
       `update jobs set ${setClauses.join(", ")}
        where id = $${values.length - 1} and user_id = $${values.length}
        returning id, user_id, company_name, job_title, status,
-                 application_date::text as application_date, notes, archived, created_at`,
+                 application_date::text as application_date, notes, archived, manual_override, created_at`,
       values,
     );
     if (!rows[0]) {
