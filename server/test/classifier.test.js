@@ -69,6 +69,21 @@ test('extractCompany: workday subdomain fallback capitalization for unknown comp
   );
 });
 
+// Real L3Harris mail: their own subject line carries a leading zero-width
+// space before the company name ("Thank you for applying at ​L3Harris!"),
+// which survived straight through into the stored company name since
+// neither \s nor .trim() treat U+200B as whitespace.
+test('extractCompany: a zero-width space embedded in the source text is stripped, not stored', () => {
+  assert.equal(
+    extractCompany({
+      from: 'bizx@l3harris.ns2cloud.com',
+      subject: 'Thank you for applying at ​L3Harris!',
+      body: '',
+    }),
+    'L3Harris',
+  );
+});
+
 test('extractCompany: greenhouse/ashby extracted from subject text', () => {
   assert.equal(
     extractCompany({
@@ -497,6 +512,29 @@ test('extractJobTitle: strips a trailing "at <Company>" and req suffix', () => {
   assert.equal(
     extractJobTitle({ subject: '', body: 'Your application for Software Engineer II at Acme Corp' }),
     'Software Engineer II',
+  );
+});
+
+// Real L3Harris confirmation mail: "Your application for Associate, Software
+// Engineer (43447) has been received." The generic "application for X"
+// fallback excludes commas from its capture, which truncated this down to
+// just "Associate" -- and since a second, different L3Harris application
+// ("Associate, Systems Engineering (41239)") truncated to the exact same
+// "Associate", the two merged into one job instead of staying separate.
+test('extractJobTitle: a comma-separated level/discipline before a bare requisition number is not truncated at the comma', () => {
+  assert.equal(
+    extractJobTitle({
+      subject: '',
+      body: 'Your application for Associate, Software Engineer (43447) has been received.',
+    }),
+    'Associate, Software Engineer',
+  );
+  assert.equal(
+    extractJobTitle({
+      subject: '',
+      body: 'Your application for Associate, Systems Engineering (41239) has been received.',
+    }),
+    'Associate, Systems Engineering',
   );
 });
 

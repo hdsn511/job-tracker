@@ -285,9 +285,17 @@ const SUBJECT_COMPANY_PATTERNS = [
   new RegExp(`application (?:to|with) (${NAME_CHARS})`, 'i'),
 ];
 
+// Zero-width/format characters (ZWSP, ZWNJ, ZWJ, BOM) are invisible but not
+// whitespace as far as \s or .trim() are concerned, so they survive
+// straight through into a stored company/title otherwise. Confirmed real:
+// L3Harris's own subject line ("Thank you for applying at ​L3Harris!")
+// carries a leading U+200B, which without this showed up as "​L3Harris"
+// in the jobs table.
+const INVISIBLE_CHARS = /[​-‍﻿]/g;
+
 function cleanExtracted(raw) {
   if (!raw) return null;
-  return raw.replace(/\s+/g, ' ').trim().replace(/[.!,]+$/, '') || null;
+  return raw.replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ').trim().replace(/[.!,]+$/, '') || null;
 }
 
 // A spaced separator in a subject line ("Thank you for applying to Acme
@@ -383,6 +391,16 @@ const JOB_TITLE_PATTERNS = [
   /\bthe\s+([^.,\n(]+?)\s+(?:position|role|opening|opportunity|vacancy)\b/i,
   /for ([^.,\n(]+?)\s*\(Job ID/i,
   /for ([^.,\n(]+?)\s*\(req/i,
+  // "application for Associate, Software Engineer (43447)" -- a level and a
+  // discipline separated by a comma, closed off by a bare requisition
+  // number in parens (as distinct from the "(Job ID ...)"/"(req ...)"
+  // labelled forms above, which are unambiguous enough to stop at any
+  // comma). The generic fallback below excludes commas entirely, which
+  // truncated this real shape down to just "Associate" -- confirmed against
+  // real L3Harris mail, where it collapsed two different roles (Software
+  // Engineer and Systems Engineering) into the same truncated title and
+  // merged what should have been two separate jobs into one.
+  /application for ([^.\n(]+?)\s*\(\d{3,}\)/i,
   /application for ([^.,\n(]+?)(?:\s+at\s+|\s*[.,(\n]|$)/i,
 ];
 
