@@ -30,7 +30,7 @@ export default function ApplicationList({ apps, selectedId, onSelect, emptyState
             <span className="jt-row-title">{app.title}</span>
           </span>
           <StatusBadge status={app.status} />
-          <span className="jt-row-date">{formatShort(app.date)}</span>
+          <span className="jt-row-date">{formatShort(app.lastEventDate ?? app.date)}</span>
         </button>
       ))}
     </div>

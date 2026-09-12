@@ -153,6 +153,13 @@ export function cleanEventText(text) {
     .trim();
 }
 
+/** The most recent status update's date, falling back to the applied date. */
+function latestEventDate(events, fallback) {
+  const isoDates = events.map((event) => event.iso).filter(Boolean);
+  if (!isoDates.length) return fallback;
+  return isoDates.reduce((latest, iso) => (iso > latest ? iso : latest));
+}
+
 /** Normalizes a `jobs` row into the shape every view below expects. */
 export function toApplication(job) {
   const date = job.application_date ? String(job.application_date).slice(0, 10) : null;
@@ -163,6 +170,7 @@ export function toApplication(job) {
     title: job.job_title || "Unknown title",
     status: STAGES.includes(job.status) ? job.status : "Applied",
     date,
+    lastEventDate: latestEventDate(events, date),
     notes: job.notes || "",
     archived: Boolean(job.archived),
     events,
@@ -171,10 +179,12 @@ export function toApplication(job) {
 
 export function sortByDateDesc(apps) {
   return [...apps].sort((a, b) => {
-    if (a.date === b.date) return b.id - a.id;
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return a.date < b.date ? 1 : -1;
+    const aDate = a.lastEventDate ?? a.date;
+    const bDate = b.lastEventDate ?? b.date;
+    if (aDate === bDate) return b.id - a.id;
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return aDate < bDate ? 1 : -1;
   });
 }
 
