@@ -1,49 +1,18 @@
-// Per-message classification cache.
+// Per-message classification store.
 //
-// The resync is a re-read: every run re-examines the whole window rather than
-// only what arrived since the last run. That is what makes classifier fixes
-// retroactive, but without a cache it would also re-send every message to the
-// LLM on every run. Keyed by Gmail message id, a message is classified once.
+// The resync is a re-read: every run re-examines the whole window AND
+// reclassifies every message in it from scratch (sync/index.js clears this
+// table for the window's message ids before reprocessing), so a classifier
+// or provider fix reaches old mail on the very next run rather than waiting
+// behind a stale answer. This is no longer a memoized shortcut that saves an
+// LLM call on a re-read -- it is the durable record getAllSignalMessages()
+// reads to (re)build every job, surviving between runs for that reason.
 //
 // Stores derived fields only. The subject and body are never persisted --
 // redacting what we send to the LLM would be pointless if the raw mail were
 // sitting in our own database.
 
 const sql = require('../db');
-
-/** Cached classifications for the given message ids, as a Map by message id. */
-async function loadCached(userId, messageIds) {
-  const cache = new Map();
-  if (!messageIds || messageIds.length === 0) return cache;
-
-  const rows = await sql`
-    select gmail_message_id, message_date, is_noise, reason, stage, detail,
-           company, job_title, job_id, ats, is_third_party, source, message_id_header
-      from message_classifications
-     where user_id = ${userId}
-       and gmail_message_id = any(${messageIds})
-  `;
-
-  for (const row of rows) {
-    cache.set(row.gmail_message_id, {
-      date: row.message_date ? new Date(row.message_date) : null,
-      isNoise: row.is_noise,
-      reason: row.reason,
-      status: row.stage,
-      detail: row.detail,
-      company: row.company,
-      jobTitle: row.job_title,
-      jobId: row.job_id,
-      ats: row.ats,
-      isThirdParty: row.is_third_party,
-      source: row.source,
-      messageIdHeader: row.message_id_header,
-      needsReview: !row.stage || !row.company,
-      cached: true,
-    });
-  }
-  return cache;
-}
 
 /** Upserts one message's classification. */
 async function saveClassification(userId, messageId, result) {
@@ -74,15 +43,29 @@ async function saveClassification(userId, messageId, result) {
 }
 
 /**
- * Forgets cached classifications for one user, so the next sync re-derives
- * every message. This is the escape hatch after a classifier change: the
- * cache is keyed only by message id, so it has no idea the rules improved.
+ * Forgets cached classifications so the next sync re-derives them. With
+ * `messageIds` given, only those rows are dropped -- this is what every sync
+ * run does to its own window now, since the cache is keyed only by message
+ * id and has no idea the rules or an LLM provider changed. With no
+ * `messageIds`, every one of the user's cached rows is dropped, including
+ * ones outside any particular sync window -- the escape hatch for when a
+ * classifier fix needs to reach mail a narrower window won't re-fetch.
  */
-async function clearCache(userId) {
+async function clearCache(userId, messageIds) {
+  if (messageIds !== undefined) {
+    if (messageIds.length === 0) return 0;
+    const rows = await sql`
+      delete from message_classifications
+       where user_id = ${userId} and gmail_message_id = any(${messageIds})
+      returning gmail_message_id
+    `;
+    return rows.length;
+  }
+
   const rows = await sql`
     delete from message_classifications where user_id = ${userId} returning gmail_message_id
   `;
   return rows.length;
 }
 
-module.exports = { loadCached, saveClassification, clearCache };
+module.exports = { saveClassification, clearCache };

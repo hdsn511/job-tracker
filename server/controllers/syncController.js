@@ -32,9 +32,11 @@ const runSync = async (req, res) => {
   let connection;
   try {
     if (startDate) await setSyncStartDate(userId, startDate);
-    // `reparse` forgets every cached classification so the whole window is
-    // re-derived by the current classifier. Without it a re-read reuses
-    // cached results and classifier improvements never reach old mail.
+    // Every sync already reclassifies its own window from scratch (see the
+    // cache clear in syncConnection). `reparse` goes further: it forgets
+    // EVERY cached classification, including mail outside this run's window,
+    // so a classifier fix can reach older history that a narrower window
+    // won't re-fetch on its own.
     if (req.body && req.body.reparse) {
       const cleared = await clearCache(userId);
       console.log(`[sync user ${userId}] cleared ${cleared} cached classification(s) for re-parse`);

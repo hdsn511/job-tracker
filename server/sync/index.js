@@ -2,16 +2,15 @@ const { getGmailClient } = require('../gmailAuth');
 const { listCandidateMessageIds, getMessage } = require('./gmail');
 const { resolveMessage } = require('./resolve');
 const { listConnections, setLastSyncedAt } = require('./gmailConnections');
-const { loadCached, saveClassification } = require('./classificationCache');
+const { saveClassification, clearCache } = require('./classificationCache');
 const { getLlmStats, resetLlmStats, activeProvider, activeModel } = require('./llm');
 const { getExistingJobs, getAllSignalMessages, upsertJobFromMessages, groupMessages } = require('./jobs');
 
 // Used when a connection has no explicit start date — the historical default.
 const DEFAULT_LOOKBACK_SECONDS = 30 * 24 * 60 * 60;
 
-// Gmail's per-user "units per minute" quota is easy to blow through on a
-// large first-time backfill if messages.get calls fire back-to-back. Only
-// paid on a cache miss, so a re-read of an already-classified window is fast.
+// Gmail's per-user "units per minute" quota is easy to blow through if
+// messages.get calls fire back-to-back on a large window.
 const FETCH_DELAY_MS = 250;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -21,7 +20,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * This is the whole window, every run — not "since we last looked". The sync
  * is a re-read: it re-examines everything back to the start date so that
  * classifier improvements apply retroactively and a stage that was wrong can
- * be corrected. The classification cache is what keeps that affordable.
+ * be corrected. Every message in the window is also reclassified every run
+ * (see the cache clear in syncConnection below) rather than served from a
+ * prior run's answer, so this is deliberately bounded to a window rather than
+ * "all mail ever" — a real cost/quota lever, not just a preference.
  */
 function windowFloorSeconds(syncStartDate) {
   if (syncStartDate) {
@@ -50,8 +52,15 @@ async function syncConnection(
   const messageIds = await listCandidateMessageIds(gmail, { afterEpochSeconds });
   log(`Found ${messageIds.length} candidate message(s) in the window.`);
 
-  const cache = await loadCached(userId, messageIds);
-  log(`${cache.size} already classified, ${messageIds.length - cache.size} to classify.`);
+  // Every run reclassifies its whole window from scratch: a message that
+  // needed review last time (a dead/unconfigured LLM provider, a quota that's
+  // since been fixed) would otherwise be stuck behind its own stale cache
+  // entry forever, since a cache hit used to skip reclassification outright.
+  // Scoped to this run's message ids specifically -- not a whole-user wipe --
+  // so mail outside the window (older history a narrower window won't
+  // re-fetch) is left alone rather than deleted with no way to restore it.
+  const cleared = await clearCache(userId, messageIds);
+  log(`Cleared ${cleared} cached classification(s) in the window — every message will be reclassified.`);
 
   const summary = {
     inserted: 0,
@@ -59,20 +68,12 @@ async function syncConnection(
     noise: 0,
     needsReview: 0,
     errors: 0,
-    cacheHits: cache.size,
     classified: 0,
   };
 
   const classified = [];
 
   for (const id of messageIds) {
-    const cached = cache.get(id);
-    if (cached && cached.date) {
-      if (cached.isNoise) summary.noise += 1;
-      else classified.push(cached);
-      continue;
-    }
-
     await sleep(FETCH_DELAY_MS);
 
     let email;
