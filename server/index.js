@@ -16,7 +16,7 @@ app.use(helmet());
 // real dev and production frontends.
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://job-tracker-frontend-ten-eta.vercel.app",
+  "https://jobtrak-client.vercel.app",
   ...(process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",") : []),
 ];
 // credentials: true is required for the browser to send/accept the

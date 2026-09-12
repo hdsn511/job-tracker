@@ -9,7 +9,7 @@ const { normalizeStartDate, DEFAULT_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS } = require
 // callback can only redirect to one place, so take the first entry.
 const FRONTEND_URL =
   (process.env.CLIENT_ORIGIN || '').split(',')[0].trim() ||
-  'https://job-tracker-frontend-ten-eta.vercel.app';
+  'https://jobtrak-client.vercel.app';
 
 // Starts the OAuth flow. The browser will be redirected away from our SPA
 // to Google and back, so identity can't ride along in an Authorization
