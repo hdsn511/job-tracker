@@ -62,6 +62,13 @@ test('extractCompany: workday subdomain prettified via known map', () => {
   assert.equal(extractCompany({ from: 'chewy@myworkday.com', subject: '', body: '' }), 'Chewy');
 });
 
+// Real Nightwing (spun off from Northrop Grumman) mail: the Workday tenant
+// slug is the legacy "nwis", which the plain-capitalize fallback turned into
+// "Nwis" instead of the real company name.
+test('extractCompany: workday subdomain "nwis" maps to Nightwing', () => {
+  assert.equal(extractCompany({ from: 'nwis@myworkday.com', subject: '', body: '' }), 'Nightwing');
+});
+
 test('extractCompany: workday subdomain fallback capitalization for unknown company', () => {
   assert.equal(
     extractCompany({ from: 'acmecorp@myworkday.com', subject: '', body: '' }),
@@ -108,6 +115,25 @@ test('extractCompany: greenhouse/ashby extracted from subject text', () => {
       body: '',
     }),
     'Widgetco',
+  );
+});
+
+// Real Epidemic Sound confirmation: "Thanks for applying to be our next
+// Backend Engineer - Studio!" was extracting "be our next Backend Engineer"
+// as the company. The real name only appears later in the body ("interest
+// in Epidemic Sound"), which extractCompanyFromText now reaches once the
+// infinitive false match is excluded.
+test('extractCompany: "applying to be our next X" names the role, not the company', () => {
+  assert.equal(
+    extractCompany({
+      from: 'no-reply@ashbyhq.com',
+      subject: 'Epidemic Sound - Thank you for your application!',
+      body:
+        'Thanks for applying to be our next Backend Engineer - Studio! We’re thrilled ' +
+        'you’re interested in joining the team.\n\n' +
+        'Thanks again for your interest in Epidemic Sound. We’ll be in touch!',
+    }),
+    'Epidemic Sound',
   );
 });
 
@@ -709,4 +735,41 @@ test('extractJobTitle: rejects the EEO/"Equal Employment Opportunity" boilerplat
     'Opportunity is The Law" (PDF):\n' +
     'https://careers.google.com/static/files/eeoisthelaw.pdf';
   assert.equal(extractJobTitle({ subject: '', body }), null);
+});
+
+test('extractJobTitle: rejects a lowercase-leading capture from the generic "the X position/opportunity" fallback', () => {
+  // Real IBM assessment-invite boilerplate: "we want to ensure that you have
+  // the best opportunity to showcase your fantastic skills" matched the
+  // fallback pattern and landed as job_title 'best'.
+  assert.equal(
+    extractJobTitle({
+      subject: '',
+      body: 'We want to ensure that you have the best opportunity to showcase your fantastic skills.',
+    }),
+    null,
+  );
+  // Real Nightwing/Workday auto-reply: "If your profile meets the
+  // requirements of our open position, a member of our recruiting team will
+  // be in contact" landed as job_title 'requirements of our open'.
+  assert.equal(
+    extractJobTitle({
+      subject: '',
+      body: 'If your profile meets the requirements of our open position, we will be in contact.',
+    }),
+    null,
+  );
+  // Real Sift (Ashby) confirmation: "taking the time to apply to our
+  // Software Engineer – New College Graduate role" put "the" and "role"
+  // around the WRONG span -- the real title sits between them, but the
+  // fallback pattern's non-greedy capture still grabbed the whole "time to
+  // apply to our..." run since it's the only "the ... role" pair in the
+  // sentence. Left null here (rather than guessing at the real title) is
+  // correct: a later, cleaner email for the same job supplies it instead.
+  assert.equal(
+    extractJobTitle({
+      subject: '',
+      body: 'Thank you for taking the time to apply to our Software Engineer – New College Graduate role.',
+    }),
+    null,
+  );
 });

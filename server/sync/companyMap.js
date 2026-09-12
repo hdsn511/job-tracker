@@ -33,6 +33,12 @@ const KNOWN_COMPANY_SLUGS = {
   amd: 'AMD',
   ibm: 'IBM',
   generalmotors: 'General Motors',
+  // Nightwing's Workday tenant slug -- "nwis" is a legacy/internal name
+  // (Northrop Grumman's former IT & Mission Support sector, spun off as
+  // Nightwing), not something a plain capitalize() fallback could recover.
+  // Confirmed against a real "nwis@myworkday.com" application-received
+  // email, whose own footer signs off as "Nightwing Talent Acquisition".
+  nwis: 'Nightwing',
 };
 
 function prettifyCompanySlug(slug) {

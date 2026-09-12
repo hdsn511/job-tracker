@@ -300,9 +300,18 @@ function classifyStatus(text) {
 // the string) should.
 const NAME_CHARS = '(?:[^!,\\n|.]|\\.(?!\\s|$))+';
 
+// "Thanks for applying to be our next Backend Engineer!" names the ROLE, not
+// the company -- "to be" is an infinitive continuation, not the preposition
+// that precedes a company name in this phrasing. Without this guard, the
+// first two patterns below capture "be our next Backend Engineer" as if it
+// were the employer. Confirmed real: an Epidemic Sound confirmation email,
+// where the actual company only appears later ("interest in Epidemic
+// Sound"), which the loop now reaches once this false match is excluded.
+const NOT_INFINITIVE = '(?!be\\s)';
+
 const SUBJECT_COMPANY_PATTERNS = [
-  new RegExp(`thanks? for applying (?:to|at) (${NAME_CHARS})`, 'i'),
-  new RegExp(`thank you for applying (?:to|at) (${NAME_CHARS})`, 'i'),
+  new RegExp(`thanks? for applying (?:to|at) ${NOT_INFINITIVE}(${NAME_CHARS})`, 'i'),
+  new RegExp(`thank you for applying (?:to|at) ${NOT_INFINITIVE}(${NAME_CHARS})`, 'i'),
   new RegExp(`your application to (${NAME_CHARS})`, 'i'),
   /^([^|]+?)\s*\|\s*Application (?:Confirmation|Received|Update|Status)\b/i,
   // "Kikoff Application Confirmation" -- same shape as the piped form but
@@ -529,6 +538,15 @@ function isPlausibleJobTitle(s) {
   // role (or left it correctly unknown, since this email names no role at
   // all).
   if (/equal employment/i.test(s)) return false;
+  // A real title is always written capitalized in this mail ("Software
+  // Engineer I", "Data Integration Engineer") -- a capture starting with a
+  // lowercase letter is the tell of a running-prose fragment rather than an
+  // actual title. Confirmed against real IBM and Nightwing/Workday mail
+  // auditing tonight's needsReview bucket: "the best opportunity" and "the
+  // requirements of our open position" both matched the generic "the X
+  // position/opportunity" fallback pattern and landed as job_title 'best'
+  // and 'requirements of our open'.
+  if (/^[a-z]/.test(s.trim())) return false;
   return !JOB_TITLE_BAD_LEAD_WORDS.has(words[0].toLowerCase());
 }
 
