@@ -30,6 +30,21 @@ function extractAddress(fromHeader) {
   return addr.trim().toLowerCase();
 }
 
+/** Pulls the display name out of a "Display Name <addr@domain>" header, or null if there isn't one. */
+function extractDisplayName(fromHeader) {
+  if (!fromHeader) return null;
+  const match = fromHeader.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/);
+  return match ? match[1].trim() : null;
+}
+
+// A vendor's own display name ("HireVue Screening Team") must not be
+// mistaken for the employer just because nothing else names one. Mirrors
+// resolve.js's acceptCompany() guard against the same failure on LLM
+// output -- kept as its own small pattern here rather than shared, since
+// each guards a different extraction source.
+const VENDOR_DISPLAY_NAME_PATTERN =
+  /\b(?:workday|greenhouse|ashby|ashbyhq|lever|icims|taleo|smartrecruiters|hackerrank|codesignal|codility|hirevue|micro1)\b/i;
+
 function extractDomain(address) {
   const at = address.lastIndexOf('@');
   return at === -1 ? '' : address.slice(at + 1);
@@ -70,22 +85,43 @@ function identifyATS(fromHeader) {
 // Noise filtering — emails that are not new-application signal at all.
 // ---------------------------------------------------------------------------
 
+// Addresses whose entire business is bulk job-matching digests -- never a
+// per-application status update -- so the sender alone is enough to drop
+// them, whatever the subject says this time. A domain is deliberately NOT
+// used here for a platform (like ZipRecruiter) that also sends genuine
+// per-application confirmations from a different address on the same
+// domain; only the specific alert-bot address is safe to blanket-match.
 const JOB_ALERT_SENDERS = new Set([
   'donotreply@match.indeed.com',
   'team@hi.wellfound.com',
+  'noreply@jobright.ai',
+  'monster@notifications.monster.com',
+  'alerts@ziprecruiter.com',
 ]);
 
+// Confirmed real: a Jobright "84% match" digest read by the LLM produced a
+// fabricated job (company "Software Engineer", stage "Interviewing") from
+// mail that was never a real application at all. The phrase set below used
+// to be checked only for domain === 'linkedin.com' -- the exact same
+// wording from any other job board's own domain sailed through
+// unrecognized, which is what let this in once resolve.js stopped gating on
+// a keyword list before the LLM.
 const JOB_ALERT_SUBJECT_PATTERNS = [
   /jobs? you may be interested in/i,
   /new jobs? for you/i,
   /job alert/i,
   /recommended for you/i,
   /jobs? matching your/i,
+  // "Pylon just posted a 84% match Software Engineer... role"
+  /just posted a \d+% match/i,
+  // "Gravitate is hiring for “Software Engineer...” like you"
+  /is hiring for [“"]/i,
+  // "Your job matches for “Software Engineer” — curated for you"
+  /curated for you/i,
 ];
 
 function classifyNoise({ from, subject, body }) {
   const address = extractAddress(from);
-  const domain = extractDomain(address);
   const text = `${subject || ''}\n${body || ''}`;
 
   if (address === 'noreply@mail.amazon.jobs' && /keep track of your application/i.test(text)) {
@@ -96,7 +132,7 @@ function classifyNoise({ from, subject, body }) {
     return { isNoise: true, reason: 'job_alert_digest' };
   }
 
-  if (domain === 'linkedin.com' && JOB_ALERT_SUBJECT_PATTERNS.some((re) => re.test(subject || ''))) {
+  if (JOB_ALERT_SUBJECT_PATTERNS.some((re) => re.test(subject || ''))) {
     return { isNoise: true, reason: 'job_alert_digest' };
   }
 
@@ -408,7 +444,22 @@ function extractCompany({ from, subject, body }, atsInfo) {
     if (hasTag !== undefined && companyTag) return prettifyCompanySlug(companyTag);
     return extractCompanyFromText(subject, body);
   }
-  return extractCompanyFromText(subject, body);
+
+  const fromText = extractCompanyFromText(subject, body);
+  if (fromText) return fromText;
+
+  // Last resort: the sender's own display name, when it reads as a plausible
+  // company and isn't an ATS/screening vendor's own name. Confirmed real: a
+  // CGI application sent through Njoyn (CGI's own ATS, not on any
+  // recognized-vendor list) named the employer only in "CGI
+  // <help.candidate@njoyn.com>" -- nowhere in the subject matched any
+  // extraction pattern, even though the answer was sitting in the one place
+  // this function wasn't looking.
+  const displayName = extractDisplayName(from);
+  if (displayName && isPlausibleCompanyName(displayName) && !VENDOR_DISPLAY_NAME_PATTERN.test(displayName)) {
+    return displayName;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

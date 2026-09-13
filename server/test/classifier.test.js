@@ -317,6 +317,70 @@ test('classifyNoise: job alert / recommendation senders are noise', () => {
   );
 });
 
+test('classifyNoise: Jobright and Monster alert-bot senders are noise regardless of subject wording', () => {
+  // Confirmed real: neither sender was recognized at all before this --
+  // classifyNoise's job-alert detection only covered 2 exact addresses plus
+  // LinkedIn-only subject patterns, so mail like this reached the LLM once
+  // resolve.js stopped gating on a keyword list. One of these digests is
+  // the likely source of a real, wrongly-created job (company "Software
+  // Engineer", stage "Interviewing") from a message that was never a real
+  // application at all -- a job board's generic "here's a match" copy,
+  // read by a model with no ground truth to check it against.
+  assert.equal(
+    classifyNoise({
+      from: 'Jobright Job Alert <noreply@jobright.ai>',
+      subject: 'Pylon just posted a 84% match Software Engineer, New Grad role 1 hour ago',
+      body: '',
+    }).isNoise,
+    true,
+  );
+  assert.equal(
+    classifyNoise({
+      from: 'Monster <monster@notifications.monster.com>',
+      subject: 'Your job alert for: Software Engineer, Madison, Wisconsin',
+      body: '',
+    }).isNoise,
+    true,
+  );
+});
+
+test('classifyNoise: ZipRecruiter\'s alert-bot address is noise, but a personal application-status address from the same domain is not', () => {
+  // alerts@ziprecruiter.com is the digest bot; a real per-application
+  // confirmation (e.g. "Phil @ ZipRecruiter" <phil@ziprecruiter.com>, "Your
+  // ... application is complete") comes from a different address on the
+  // same domain and must still reach the classifier.
+  assert.equal(
+    classifyNoise({
+      from: 'ZipRecruiter <alerts@ziprecruiter.com>',
+      subject: 'Software Engineer Internship opening at Clerkie',
+      body: '',
+    }).isNoise,
+    true,
+  );
+  assert.equal(
+    classifyNoise({
+      from: '"Phil @ ZipRecruiter" <phil@ziprecruiter.com>',
+      subject: 'Your "Associate Software Engineer" application is complete',
+      body: '',
+    }).isNoise,
+    false,
+  );
+});
+
+test('classifyNoise: job-alert subject phrasing is recognized from any sender, not just linkedin.com', () => {
+  // The subject-pattern check used to be scoped to domain === 'linkedin.com'
+  // only, so the same phrasing from any other job board's own domain sailed
+  // through unrecognized.
+  assert.equal(
+    classifyNoise({
+      from: 'alerts@somejobboard.example.com',
+      subject: 'New jobs for you: Software Engineer',
+      body: '',
+    }).isNoise,
+    true,
+  );
+});
+
 test('classifyNoise: a real Amazon application-received email is not noise', () => {
   const result = classifyNoise({
     from: 'noreply@mail.amazon.jobs',
@@ -664,6 +728,39 @@ test('extractCompany: a dash-separated title in the subject is not part of the c
       body: 'We received your application.',
     }),
     'Acme Robotics',
+  );
+});
+
+test('extractCompany: falls back to the sender\'s own display name when nothing else names the employer', () => {
+  // Real CGI application mail, sent through Njoyn (CGI's own applicant
+  // tracking platform, not on any recognized-ATS list): "CGI
+  // <help.candidate@njoyn.com>", subject "Job Application Acknowledgement -
+  // Software Developer - Entry Level, J0826-1531". No SUBJECT_COMPANY_
+  // PATTERNS shape matches that subject, so extraction fell through to null
+  // even though the employer's name was sitting in the From header the
+  // whole time -- extractAddress() only ever kept the bracketed address,
+  // discarding the display name entirely.
+  assert.equal(
+    extractCompany({
+      from: 'CGI <help.candidate@njoyn.com>',
+      subject: 'Job Application Acknowledgement - Software Developer – Entry Level, J0826-1531',
+      body: 'Thank you for your interest in a career with us.',
+    }),
+    'CGI',
+  );
+});
+
+test('extractCompany: the display-name fallback still defers to a real ATS/screening vendor name', () => {
+  // A vendor's own display name ("HireVue Screening Team") must not be
+  // mistaken for the employer just because nothing else names one --
+  // mirrors acceptCompany()'s guard against the same failure on LLM output.
+  assert.equal(
+    extractCompany({
+      from: 'HireVue Screening Team <noreply@candidate.hirevue.com>',
+      subject: 'Your assessment is ready',
+      body: 'Please complete your on-demand interview.',
+    }),
+    null,
   );
 });
 
