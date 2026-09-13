@@ -146,6 +146,27 @@ test('isDailyQuota: a per-day cap is terminal, a per-minute one is not', () => {
   assert.equal(isDailyQuota(undefined), false);
 });
 
+test('isDailyQuota: also recognizes Groq\'s plain-text daily-cap message, which carries no structured quotaId', () => {
+  // Real Groq 429, confirmed live: "...on tokens per day (TPD): Limit
+  // 200000, Used 198368, Requested 1646. Please try again in 6.05s." --
+  // Groq's error body has no structured violations the way Gemini's does,
+  // so quotaId is always '' for it. Without checking the prose too, this
+  // read as an ordinary per-minute rate limit: the code retried it up to
+  // MAX_RETRIES times, each waiting out the suggested ~6s, on EVERY message
+  // for the rest of the run -- the daily window never reopens that way, so
+  // a 652-candidate resync spent hours retrying instead of falling through
+  // to the rule engine immediately once the day's budget was gone.
+  const message =
+    'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_x` ' +
+    'service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 198368, ' +
+    'Requested 1646. Please try again in 6.047999999s.';
+  assert.equal(isDailyQuota('', message), true);
+});
+
+test('isDailyQuota: an ordinary per-minute message is not mistaken for a daily cap', () => {
+  assert.equal(isDailyQuota('', 'Rate limit reached for model, please try again in 6.5s.'), false);
+});
+
 // --- provider request shaping -----------------------------------------------
 // providers.js had no coverage at all, which is how a comment promising a
 // thinking-field fallback survived without the fallback existing.

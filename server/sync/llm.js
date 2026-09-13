@@ -238,10 +238,18 @@ function quotaIdOf(body) {
 }
 
 /** Whether this quota is a daily cap, which no amount of waiting will lift. */
-function isDailyQuota(quotaId) {
+function isDailyQuota(quotaId, message) {
   // Google writes these both ways across APIs: "...PerDayPerProject..." and
   // "generate_requests_per_day". Match either separator.
-  return /per[_-]?day/i.test(quotaId || '');
+  if (/per[_-]?day/i.test(quotaId || '')) return true;
+  // Groq has no structured violations the way Gemini does -- quotaId is
+  // always '' for it -- and names its daily cap in prose instead: "...on
+  // tokens per day (TPD): Limit 200000, Used 198368, Requested 1646.
+  // Please try again in 6.05s." Confirmed live: without checking the prose
+  // too, that read as an ordinary per-minute limit and got retried on every
+  // message for the rest of the run instead of falling through to rules
+  // once the day's budget was actually gone.
+  return /\bper day\b|\((?:TPD|RPD)\)/i.test(message || '');
 }
 
 async function readError(response) {
@@ -346,7 +354,7 @@ async function classifyWithLlm(email, { ats } = {}) {
     // rules rather than sleeping the retry budget against a window that
     // reopens tomorrow. Counted as failed, not rate-limited, so the sync
     // summary shows a dead provider instead of a busy one.
-    if (response.status === 429 && isDailyQuota(quotaId)) {
+    if (response.status === 429 && isDailyQuota(quotaId, detail)) {
       noteFailure(
         `daily quota exhausted on ${provider.name}/${model} (${quotaId})` +
         `${detail ? ` — ${detail}` : ''}`,
