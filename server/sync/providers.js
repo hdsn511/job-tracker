@@ -61,6 +61,15 @@ const groq = {
   apiKeyEnv: 'GROQ_API_KEY',
   modelEnv: 'GROQ_MODEL',
   defaultModel: 'openai/gpt-oss-120b',
+  // Groq's free tier is token-based (8k tokens/minute), not request-based,
+  // so a flat requests-per-minute figure is an approximation, not an exact
+  // fit -- but a reasonable one beats bursting until a 429, waiting out the
+  // reactive backoff, and bursting again, which is what happened once
+  // resolve.js started sending most fetched mail to the LLM instead of a
+  // small, keyword-gated fraction of it. 10 leaves headroom under the ~11/min
+  // throughput sync/README.md's own scoring run measured against the real
+  // system prompt + few-shot examples + a redacted message body.
+  requestsPerMinute: 10,
 
   buildRequest({ model, messages, schema, strict, apiKey }) {
     return {

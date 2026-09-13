@@ -53,8 +53,8 @@ test('retryDelayMs: falls back to a fixed wait when nothing is parseable', () =>
 const { paceDelayMs, resetPacing } = require('../sync/llm');
 
 test('paceDelayMs: a provider with no stated rate is never paced', () => {
-  // Groq's free tier is token-based, not request-based, so it declares no
-  // requestsPerMinute and must keep running at full speed.
+  // Exercises paceDelayMs() directly, independent of what any real provider
+  // sets -- see providers.test.js for Groq's actual configured rate.
   assert.deepEqual(paceDelayMs(undefined, 1000, 0), { delay: 0, nextSlot: 0 });
   assert.deepEqual(paceDelayMs(0, 1000, 0), { delay: 0, nextSlot: 0 });
 });
