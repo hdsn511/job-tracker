@@ -1,6 +1,7 @@
 const sql = require('../db');
 const { generateAlias, mailgunPayloadToEmail } = require('../sync/inboundEmail');
 const { verifyMailgunSignature } = require('../sync/inboundVerify');
+const { isGmailForwardingConfirmation, extractConfirmationLink } = require('../sync/gmailForwardingConfirmation');
 const { saveInboundClassification } = require('../sync/inboundClassifications');
 const { resolveMessage } = require('../sync/resolve');
 const { getExistingJobs, getAllSignalMessages, upsertJobFromMessages, groupMessages } = require('../sync/jobs');
@@ -35,12 +36,13 @@ const setupInboundAddress = async (req, res) => {
 
   try {
     const [existing] = await sql`
-      select alias, verified_at from inbound_addresses where user_id = ${req.user.id}
+      select alias, verified_at, confirmation_link from inbound_addresses where user_id = ${req.user.id}
     `;
     if (existing) {
       return res.json({
         alias: existing.alias,
         verified: Boolean(existing.verified_at),
+        confirmationLink: existing.confirmation_link,
         gmailFilterUrl: buildGmailCreateFilterUrl(),
       });
     }
@@ -59,13 +61,14 @@ const setupInboundAddress = async (req, res) => {
 const getInboundStatus = async (req, res) => {
   try {
     const [row] = await sql`
-      select alias, verified_at, created_at from inbound_addresses where user_id = ${req.user.id}
+      select alias, verified_at, created_at, confirmation_link from inbound_addresses where user_id = ${req.user.id}
     `;
     res.json({
       connected: Boolean(row),
       alias: row ? row.alias : null,
       verified: row ? Boolean(row.verified_at) : false,
       createdAt: row ? row.created_at : null,
+      confirmationLink: row ? row.confirmation_link : null,
       gmailFilterUrl: buildGmailCreateFilterUrl(),
     });
   } catch (error) {
@@ -129,6 +132,21 @@ const receiveInboundEmail = async (req, res) => {
     `;
 
     const email = mailgunPayloadToEmail(body);
+
+    // Gmail's ownership check for this alias as a forwarding target -- sent
+    // to the alias itself, not to the user, so there's no inbox for anyone
+    // to read it and click through except this one. Stage the link for the
+    // frontend instead of running it through the job classifier, where it
+    // would just be noise.
+    if (isGmailForwardingConfirmation(email)) {
+      const link = extractConfirmationLink(email.body);
+      if (link) {
+        await sql`update inbound_addresses set confirmation_link = ${link} where user_id = ${userId}`;
+      }
+      await sql`update inbound_emails set processed_at = now() where id = ${inboundEmail.id}`;
+      return res.status(200).json({ received: true });
+    }
+
     const result = await resolveMessage(email);
     result.date = email.date;
     await saveInboundClassification(userId, inboundEmail.id, result);

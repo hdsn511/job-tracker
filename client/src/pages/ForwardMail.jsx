@@ -17,7 +17,7 @@ import "@/styles/jobtrak.css";
 export default function ForwardMail() {
   const navigate = useNavigate();
   const [cohort, setCohort] = useState(null); // 'dedicated' | 'personal' | null
-  const [setup, setSetup] = useState(null); // { alias, verified, gmailFilterUrl }
+  const [setup, setSetup] = useState(null); // { alias, verified, confirmationLink, gmailFilterUrl }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,6 +49,33 @@ export default function ForwardMail() {
       cancelled = true;
     };
   }, [cohort, setup, navigate]);
+
+  // Gmail emails a confirmation link to the alias itself the moment the user
+  // adds it as a forwarding address in their own Gmail settings (step 2
+  // below) -- there's no inbox at that address for a human to open, so the
+  // backend catches it (inboundController.js) and this poll is what notices.
+  // Stops once the link shows up; nothing to poll for after that.
+  useEffect(() => {
+    if (!setup || setup.confirmationLink) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const status = await api("/api/inbound/status");
+        if (!cancelled && status?.confirmationLink) {
+          setSetup((prev) => (prev ? { ...prev, confirmationLink: status.confirmationLink } : prev));
+        }
+      } catch {
+        // Transient network hiccup -- the next tick tries again.
+      }
+    };
+
+    const interval = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [setup]);
 
   const handleCopy = async () => {
     if (!setup?.alias) return;
@@ -106,6 +133,25 @@ export default function ForwardMail() {
                 </button>
               </div>
             </div>
+
+            {setup.confirmationLink ? (
+              <div className="jt-notice">
+                Gmail sent its confirmation request &mdash; we caught it for you. Click below to finish
+                turning forwarding on (opens Gmail; make sure you&apos;re signed into the account
+                you&apos;re forwarding from).
+                <div style={{ marginTop: 8 }}>
+                  <a
+                    href={setup.confirmationLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="jt-btn jt-btn-primary"
+                    style={{ textDecoration: "none", display: "inline-block" }}
+                  >
+                    Confirm forwarding
+                  </a>
+                </div>
+              </div>
+            ) : null}
 
             {cohort === "dedicated" ? (
               <div className="jt-steps">
