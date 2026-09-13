@@ -14,7 +14,6 @@ const { classifyEmail, identifyATS, isPlausibleJobTitle, trimJobTitle, ATS } = r
 const { KNOWN_DIRECT_SENDERS, THIRD_PARTY_SENDERS, KNOWN_COMPANY_SLUGS } = require('./companyMap');
 const { isAuthMail } = require('./redact');
 const { classifyWithLlm } = require('./llm');
-const { matchesJobKeyword } = require('./forwardingPredicates');
 
 const ASSESSMENT_DETAIL = 'Assessment/OA';
 
@@ -86,30 +85,18 @@ async function resolveMessage(email, { llm = classifyWithLlm } = {}) {
     return { isNoise: true, reason: auth.reason };
   }
 
-  // A sender we don't already recognize (no known ATS/direct-employer match)
-  // gets one more, cheap check before an LLM call: does the subject/snippet
-  // even look job-related? This is what makes gmail.js's broad deny-list
-  // search affordable -- without it, every non-promotional email in the
-  // inbox would reach the LLM. Known senders (rules.ats truthy) skip this;
-  // they're already trusted the same way they always have been.
-  //
-  // `snippet` falls back to `body` here because the upload/forwarding path
-  // (inboundController.js) never sets snippet -- it has no Gmail search
-  // result to take one from, only the full message it already parsed. That
-  // silently left this gate checking the SUBJECT LINE ALONE for every
-  // uploaded message, since matchesJobKeyword only looks at subject+snippet.
-  // A subject like "Thank you for Applying to Amazon!" or "Kikoff
-  // Application Confirmation" doesn't contain any of JOB_KEYWORDS's
-  // phrases -- the phrase is always in the body -- so real application mail
-  // from any sender not already on the direct/ATS allow-list was dropped as
-  // no_job_signal before ever reaching company/title extraction. Confirmed
-  // against a real backfill: 852 of 995 uploaded messages fell to this gate.
-  // The OAuth path is unaffected: it already sets a real `snippet`, so this
-  // fallback never triggers there.
-  if (!rules.ats && !matchesJobKeyword({ subject: email.subject, snippet: email.snippet || email.body })) {
-    return { isNoise: true, reason: 'no_job_signal' };
-  }
-
+  // No further pre-LLM gate: classifyEmail() and isAuthMail() above already
+  // decide, for free, what's confidently noise (digests, credential mail).
+  // Anything that isn't gets classified -- a hand-maintained keyword list
+  // used to stand between an unrecognized sender and the LLM here, and it
+  // was exactly as brittle as any fixed phrase list is against unbounded
+  // real-world wording. Confirmed against a real inbox: a Chewy verification
+  // email was dropped purely because its wording didn't match, and a real
+  // micro1 recruiter follow-up ("Still interested in moving forward?") has
+  // no sender pattern to fall back on either -- there is no keyword list
+  // that generalizes to phrasing nobody has seen yet. Volume is bounded
+  // upstream instead, by what actually gets fetched in the first place (see
+  // forwardingPredicates.js's sender-pattern and content-phrase overrides).
   let model = null;
   try {
     model = await llm(email, { ats: rules.ats });

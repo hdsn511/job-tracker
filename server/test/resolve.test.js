@@ -100,23 +100,39 @@ test('resolveMessage: an implausible LLM title is rejected in favour of the rule
 });
 
 // ---------------------------------------------------------------------------
-// Pre-LLM keyword gate (unrecognized senders only)
+// The decision tree for what reaches the LLM
 // ---------------------------------------------------------------------------
-// gmail.js's search was broadened from a known-sender allow-list to a much
-// wider deny-list (everything except Promotions/Social/Forums) so a new
-// company's ATS domain isn't silently invisible. This gate is what keeps
-// that affordable: an unrecognized sender only reaches the LLM if its
-// subject/snippet looks job-related at all.
+// A pre-LLM keyword gate used to hard-drop any unrecognized sender whose
+// subject/snippet didn't literally contain one of a handful of fixed
+// phrases -- brittle by construction, since real phrasing is unbounded.
+// Confirmed against a real inbox: a Chewy verification email
+// ("chewy@otp.workday.com") was dropped this way purely because its
+// wording didn't match, and a real micro1 recruiter follow-up ("Still
+// interested in moving forward?") has no sender pattern to fall back on
+// either. The decision tree is simple instead: classifyEmail() and
+// isAuthMail() already decide confidently what's definitely noise (digests,
+// credential mail) for free -- anything that isn't gets sent to the LLM
+// rather than discarded pre-emptively. Volume is bounded upstream instead,
+// by what actually gets fetched (see forwardingPredicates.js).
 
-test('resolveMessage: an unrecognized sender with no job-signal content is dropped before the LLM runs', async () => {
+test('resolveMessage: an unrecognized sender with no obvious job-signal content still reaches the LLM', async () => {
   let llmCalled = false;
   const result = await resolveMessage(
-    { from: 'newsletter@some-random-blog.com', subject: 'This week in tech', body: 'Here are five articles you might like.' },
-    { llm: async () => { llmCalled = true; return { stage: 'Applied', company: 'Should Not Matter' }; } },
+    {
+      from: 'careers@some-startup.io',
+      subject: 'A quick note',
+      body: 'Not sure this reads as an application update at all.',
+    },
+    {
+      llm: async () => {
+        llmCalled = true;
+        return { stage: 'Applied', company: 'Some Startup' };
+      },
+    },
   );
-  assert.equal(result.isNoise, true);
-  assert.equal(result.reason, 'no_job_signal');
-  assert.equal(llmCalled, false, 'the LLM must not be called for signal-less mail from an unknown sender');
+  assert.equal(llmCalled, true, 'classifyEmail did not flag this as noise, so the LLM decides -- not a keyword gate');
+  assert.equal(result.isNoise, false);
+  assert.equal(result.status, 'Applied');
 });
 
 test('resolveMessage: an unrecognized sender WITH job-signal content still reaches the LLM', async () => {
